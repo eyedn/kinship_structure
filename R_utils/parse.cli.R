@@ -11,8 +11,7 @@
 
 
 parse.cli <- function(args) {
-  allowed <- c("generations", "population-sizes", "seed", "workers",
-               "output-dir")
+  allowed <- c("generations", "population-sizes", "seed", "output-dir")
   values <- list()
   i <- 1L
   while (i <= length(args)) {

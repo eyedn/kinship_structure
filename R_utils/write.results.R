@@ -11,7 +11,7 @@
 
 
 write.results <- function(result) {
-  root <- result$config$output.dir
+  root <- path.expand(result$config$output.dir)
   dir.create(root, recursive = TRUE, showWarnings = FALSE)
   # Atomic directory creation prevents concurrent runs sharing a directory.
   repeat {

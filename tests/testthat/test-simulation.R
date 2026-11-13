@@ -9,17 +9,17 @@
 # test-simulation.R
 # ______________________________________________________________________________
 
-source(file.path('..', '..', 'simulate_kinship.R'))
-
 testthat::test_that('configuration and CLI enforce generation contracts', {
   testthat::expect_true(exists('make.config', mode = 'function'))
   testthat::expect_equal(make.config()$population.sizes, rep(100L, 100))
   config <- parse.cli(c('--generations', '2', '--population-sizes=3,4',
-                        '--seed', '7', '--workers=1'))
+                        '--seed', '7'))
   testthat::expect_equal(config$population.sizes, c(3L, 4L))
   testthat::expect_equal(config$seed, 7L)
+  testthat::expect_false('workers' %in% names(config))
+  testthat::expect_equal(DEFAULT.OUTPUT.DIR, '~/scratch/kinship_structure')
   for (args in list(c('--generations', '0'), c('--seed', '-1'),
-                    c('--workers', '1.5'), c('--unknown', '1'),
+                    c('--workers', '2'), c('--unknown', '1'),
                     c('--generations', '2', '--population-sizes', '2'),
                     c('--population-sizes', '2,'), c('--output-dir', ''),
                     c('--seed', '1', '--seed', '2'))) {
@@ -116,10 +116,6 @@ testthat::test_that('endpoints, snapshots and RNG are reproducible', {
                           paste0('G', g - 1))
     testthat::expect_equal(nrow(result$histograms), 100 * g)
     testthat::expect_equal(nrow(result$final.state$individuals), min(3, g) * 4)
-    config$workers <- 2L
-    parallel <- run.simulation(config)
-    testthat::expect_identical(result$final.state, parallel$final.state)
-    testthat::expect_identical(result$histograms, parallel$histograms)
   }
   testthat::expect_equal(snapshot.generations(50), c(0:5, 25L, 49L))
   testthat::expect_equal(snapshot.generations(1), 0L)

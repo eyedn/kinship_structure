@@ -3,8 +3,8 @@
 Simulate diploid autosomal pedigree kinship in a rolling three-generation
 population, without genomes or sex classes. `G` counts founders: 50 generations
 are labeled G0 through G49. Defaults are 100 generations, 100 individuals per
-generation, seed 1, one plotting worker, and GIF playback at five generations
-per second.
+generation, seed 1, output root `~/scratch/kinship_structure`, and GIF playback
+at five generations per second. Plotting detects available CPUs automatically.
 
 ## Run
 
@@ -20,36 +20,40 @@ Run with defaults, or pass named arguments using spaces or `=`:
 ```sh
 Rscript simulate_kinship.R
 Rscript simulate_kinship.R --generations 4 --population-sizes 100,80,120,100 \
-  --seed 1 --workers 2 --output-dir outputs
+  --seed 1 --output-dir ~/scratch/kinship_structure
 ```
 
 `--population-sizes` must contain exactly `G` comma-separated integers, all at
 least two, beginning at G0. When omitted, every generation uses
-`DEFAULT.POPULATION.SIZE`. Generations and workers must be positive integers;
-seed must be a nonnegative integer. Unknown, duplicate, missing, or invalid
-arguments fail before simulation. Execution never waits for stdin.
+`DEFAULT.POPULATION.SIZE`. Generations must be a positive integer; seed must
+be a nonnegative integer. There is no worker parameter or `--workers` option.
+Unknown, duplicate, missing, or invalid arguments fail before simulation. Execution never waits for stdin.
 
 Edit the uppercase defaults at the top of `simulate_kinship.R`. The script can
 be run from any working directory; relative output paths use that directory.
 
-For interactive execution:
+For interactive execution in RStudio, set the working directory to this
+project, edit the defaults, and click **Source**, or run:
 
 ```r
 source("simulate_kinship.R")
-config <- make.config(generations = 50,
-                      population.sizes = rep(100L, 50), seed = 1)
-result <- run.simulation(config)
-run.dir <- write.results(result)
-render.figures(result$histograms, result$generations,
-                file.path(run.dir, "figures"), workers = config$workers,
-                fps = config$fps)
+FIGURES.DIR
+list.files(FIGURES.DIR, full.names = TRUE)
+print(plot.heatmap(RESULT$histograms))
 ```
 
-Sourcing only defines defaults and functions. `run.simulation()` returns
+Sourcing runs the complete simulation, saves results, and renders figures.
+The top-level workflow has no `if` guard, `tryCatch`, or `quit()` call: errors
+stop at the failing line and leave existing objects accessible in RStudio.
+`CONFIG`, `RESULT`, `RUN.DIR`, `FIGURES.DIR`, and `RENDER.INFO` remain available
+for inspection. Run selections from the top so defaults and helpers are loaded.
+
+`run.simulation(CONFIG)` remains available for manual reruns. It returns
 `config`, `final.state` (an `individuals` tibble and a symmetric `kinship`
-matrix), and the historical `generations` and `histograms` tibbles. It does not
-write files or render plots. `make.config()` also accepts `fps` and `block.size`
-for interactive rendering and pair-summary row blocks.
+matrix), and the historical `generations` and `histograms` tibbles. This
+function alone does not write files or render plots. `make.config()` also
+accepts `fps` and `block.size` for interactive rendering and pair-summary
+row blocks.
 
 ## Model and storage
 
@@ -73,9 +77,12 @@ expired parent IDs; it is not a full pedigree archive.
 
 Parent assignments and generation updates run sequentially. The simulation
 sets a fixed RNG algorithm and restores the caller's RNG state. Plotting worker
-counts do not affect simulation results. Independent static plots can use
-`future`/`furrr`; workers are capped by available CPUs, and the caller's future
-plan is restored afterward.
+counts do not affect simulation results. Each rendering call detects available
+CPUs using `future::availableCores()`, which considers scheduler allocations and
+system limits. Independent static plots use `future`/`furrr`, with workers
+limited to the smaller of available CPUs and the number of static plots. The
+caller's future plan is restored afterward. Population updates and GIF frames
+remain sequential.
 
 The script reports the largest retained numeric matrix estimate before running:
 8 times the squared maximum active population size, in bytes. R matrix copies,
@@ -86,9 +93,22 @@ active sizes. Historical summaries occupy 100 bins per generation.
 ## Saved results
 
 Each `write.results()` call creates a unique `run_<timestamp>_<suffix>` directory
-under the configured output root. Earlier runs are preserved. CLI execution
-writes numerical results before rendering, so those results remain available
-if rendering fails.
+under the configured output root. Earlier runs are preserved. The default
+figures location is:
+
+```text
+~/scratch/kinship_structure/run_<timestamp>_<suffix>/figures/
+```
+
+`~` expands to the home directory on the machine running R. On the cluster it
+refers to your cluster home, not your local computer. The script prints the
+absolute run directory, figures directory, and GIF path. In RStudio, inspect
+`FIGURES.DIR` or use the Files pane to open that path.
+
+Both CLI and sourced execution write numerical results before rendering. Those
+results remain available if rendering fails. The `figures/` directory is created
+when rendering starts; it is absent if only `run.simulation()` or
+`write.results()` has been called.
 
 | File | Contents |
 | --- | --- |
@@ -122,13 +142,16 @@ on the y-axis.
 To regenerate figures from saved summaries without rerunning the simulation:
 
 ```r
-source("simulate_kinship.R")
-run.dir <- "outputs/run_<timestamp>_<suffix>"
+for (helper.file in list.files("R_utils", pattern = "\\.R$",
+                                full.names = TRUE)) {
+  source(helper.file)
+}
+run.dir <- path.expand("~/scratch/kinship_structure/run_<timestamp>_<suffix>")
 histograms <- read.csv(file.path(run.dir, "histograms.csv"))
 generations <- read.csv(file.path(run.dir, "generations.csv"))
 config <- readRDS(file.path(run.dir, "configuration.rds"))
 render.figures(histograms, generations, file.path(run.dir, "figures_rebuilt"),
-                workers = config$workers, fps = config$fps)
+                fps = config$fps)
 ```
 
 Rendering to an existing figure directory replaces matching figure files. Use
@@ -144,7 +167,8 @@ Tests cover known pedigrees, an independent scalar full-pedigree reference
 through cohort removal, matrix invariants, changing population sizes, histogram
 boundaries and exact zeros, G=1/G=2/G=50 endpoints, numeric frame ordering,
 reproducibility, unique output directories, CLI parity, CSV-only regeneration,
-worker-independent PNGs, and actual GIF/PNG rendering. Generated verification
+automatic CPU detection, sourced execution, repeatable PNGs, and actual
+GIF/PNG rendering. Generated verification
 outputs are kept under ignored `tests/artifacts/`.
 
 Each named function lives in its own file under `R_utils/`. Simulation,

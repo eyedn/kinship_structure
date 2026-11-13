@@ -9,8 +9,6 @@
 # test-outputs.R
 # ______________________________________________________________________________
 
-source(file.path('..', '..', 'simulate_kinship.R'))
-
 testthat::test_that('run directories preserve earlier outputs', {
   root <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'writing')
   result <- run.simulation(make.config(generations = 4,
@@ -35,14 +33,14 @@ testthat::test_that('run directories preserve earlier outputs', {
       'seed.txt', 'session_info.txt'))
 })
 
-testthat::test_that('CLI output matches interactive output with parallel plots', {
+testthat::test_that('CLI and interactive runs agree with automatic cores', {
   root <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'integration')
   dir.create(root, recursive = TRUE, showWarnings = FALSE)
   output <- tempfile('cli_', tmpdir = root)
   logs <- system2(file.path(R.home('bin'), 'Rscript'),
     c(shQuote(file.path(SCRIPT.DIR, 'simulate_kinship.R')),
       '--generations', '2', '--population-sizes', '4,3', '--seed', '9',
-      '--workers', '2', '--output-dir', shQuote(output)),
+      '--output-dir', shQuote(output)),
     stdout = TRUE, stderr = TRUE)
   testthat::expect_null(attr(logs, 'status'), info = paste(logs, collapse = '\n'))
   run.dir <- list.dirs(output, recursive = FALSE, full.names = TRUE)[1]
@@ -58,10 +56,11 @@ testthat::test_that('CLI output matches interactive output with parallel plots',
       'kinship_heatmap.png', 'kinship_histogram.gif'))
   old.plan <- future::plan()
   before <- file.path(root, 'regenerated')
-  actual <- render.figures(saved, read.csv(file.path(run.dir, 'generations.csv')),
-                           before, workers = 1)
+  actual <- render.figures(
+    saved, read.csv(file.path(run.dir, 'generations.csv')), before)
   testthat::expect_equal(future::plan(), old.plan)
-  testthat::expect_equal(actual$workers, 1)
+  testthat::expect_equal(actual$workers,
+                        min(future::availableCores(), 4L))
   for (file in list.files(before, pattern = '\\.png$')) {
     testthat::expect_identical(
       png::readPNG(file.path(before, file)),
@@ -74,9 +73,60 @@ testthat::test_that('a single generation renders and restores the future plan', 
                                        population.sizes = 2))
   output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'single_generation')
   old.plan <- future::plan()
-  rendered <- render.figures(result$histograms, result$generations, output,
-                             workers = 2)
+  rendered <- render.figures(result$histograms, result$generations, output)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(rendered$snapshots, 0L)
   testthat::expect_true(file.exists(file.path(output, 'kinship_histogram.gif')))
+})
+
+
+testthat::test_that('entry point runs directly when sourced', {
+  expressions <- parse(file.path(SCRIPT.DIR, 'simulate_kinship.R'))
+  testthat::expect_false(any(vapply(expressions, function(expression) {
+    is.call(expression) && identical(expression[[1]], as.name('if'))
+  }, logical(1))))
+  text <- readLines(file.path(SCRIPT.DIR, 'simulate_kinship.R'))
+  testthat::expect_false(any(grepl('tryCatch|quit\\(', text)))
+  testthat::expect_false('workers' %in% names(formals(make.config)))
+  testthat::expect_false('workers' %in% names(formals(render.figures)))
+})
+
+testthat::test_that('source executes the workflow and prints figure paths', {
+  root <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'live')
+  dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  output <- tempfile('source_', tmpdir = root)
+  cli.output <- output
+  home <- path.expand('~')
+  if (startsWith(output, paste0(home, '/'))) {
+    cli.output <- paste0('~', substring(output, nchar(home) + 1L))
+  }
+  expression <- paste0(
+    'Sys.setenv(SLURM_CPUS_PER_TASK = "1"); ',
+    'options(parallelly.availableCores.methods = c("Slurm", "system")); ',
+    'source(', deparse(file.path(SCRIPT.DIR, 'simulate_kinship.R')), '); ',
+    'stopifnot(file.exists(file.path(FIGURES.DIR, ',
+    '"kinship_histogram.gif")), RENDER.INFO$workers == 1L)')
+  logs <- system2(file.path(R.home('bin'), 'Rscript'),
+    c('-e', shQuote(expression), '--generations', '2',
+      '--population-sizes', '4,3', '--output-dir', shQuote(cli.output)),
+    stdout = TRUE, stderr = TRUE)
+  testthat::expect_null(attr(logs, 'status'),
+                        info = paste(logs, collapse = '\n'))
+  testthat::expect_true(any(grepl('Figures directory:', logs, fixed = TRUE)))
+  testthat::expect_true(any(grepl('Animation:', logs, fixed = TRUE)))
+  testthat::expect_true(any(grepl('Detected 1 available CPUs', logs,
+                                 fixed = TRUE)))
+})
+
+testthat::test_that('saved summaries render without main-script defaults', {
+  isolated <- new.env(parent = baseenv())
+  for (helper in list.files(file.path(SCRIPT.DIR, 'R_utils'),
+                             pattern = '\\.R$', full.names = TRUE)) {
+    sys.source(helper, envir = isolated)
+  }
+  result <- run.simulation(make.config(generations = 1,
+                                       population.sizes = 2))
+  output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'isolated_replay')
+  testthat::expect_no_error(isolated$render.figures(
+    result$histograms, result$generations, output, fps = 5L))
 })

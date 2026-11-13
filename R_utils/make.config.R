@@ -12,10 +12,10 @@
 
 make.config <- function(
     generations = DEFAULT.GENERATIONS, population.sizes = NULL,
-    seed = DEFAULT.SEED, workers = DEFAULT.WORKERS,
+    seed = DEFAULT.SEED,
     output.dir = DEFAULT.OUTPUT.DIR, fps = DEFAULT.FPS,
     block.size = DEFAULT.BLOCK.SIZE) {
-  scalars <- list(generations = generations, seed = seed, workers = workers,
+  scalars <- list(generations = generations, seed = seed,
                   fps = fps, block.size = block.size)
   for (name in names(scalars)) {
     value <- scalars[[name]]
@@ -44,6 +44,6 @@ make.config <- function(
   }
   list(generations = as.integer(generations),
        population.sizes = as.integer(population.sizes), seed = as.integer(seed),
-       workers = as.integer(workers), output.dir = output.dir,
+       output.dir = output.dir,
        fps = as.integer(fps), block.size = as.integer(block.size))
 }

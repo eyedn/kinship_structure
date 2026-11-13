@@ -11,17 +11,24 @@
 
 
 render.figures <- function(histograms, generations, output.dir,
-                           workers = DEFAULT.WORKERS, fps = DEFAULT.FPS) {
-  settings <- make.config(generations = nrow(generations), workers = workers,
-                          fps = fps, output.dir = output.dir)
+                           fps = DEFAULT.FPS) {
+  if (!is.numeric(fps) || length(fps) != 1L || is.na(fps) ||
+      !is.finite(fps) || fps < 1 || fps != floor(fps) ||
+      fps > .Machine$integer.max) {
+    stop("fps must be a positive integer.")
+  }
   packages <- c("ggplot2", "gganimate", "gifski", "future", "furrr")
   for (package in packages) {
     if (!requireNamespace(package, quietly = TRUE)) {
       stop("Install required rendering package: ", package)
     }
   }
+  output.dir <- path.expand(output.dir)
   dir.create(output.dir, recursive = TRUE, showWarnings = FALSE)
-  selected <- snapshot.generations(settings$generations)
+  if (!dir.exists(output.dir)) {
+    stop("Cannot create figures directory: ", output.dir)
+  }
+  selected <- snapshot.generations(nrow(generations))
   jobs <- lapply(selected, function(generation) {
     list(path = file.path(output.dir,
                           paste0("histogram_G", generation, ".png")),
@@ -36,7 +43,10 @@ render.figures <- function(histograms, generations, output.dir,
          plot = plot.heatmap(histograms), width = 8, height = 6)))
   old.plan <- future::plan()
   on.exit(future::plan(old.plan), add = TRUE)
-  actual.workers <- min(settings$workers, future::availableCores())
+  available.cores <- future::availableCores()
+  actual.workers <- min(available.cores, length(jobs))
+  message(sprintf("Detected %d available CPUs; using %d plotting workers.",
+                  available.cores, actual.workers))
   if (actual.workers > 1L) {
     future::plan(future::multisession, workers = actual.workers)
     furrr::future_walk(jobs, save.static.plot,
@@ -49,7 +59,7 @@ render.figures <- function(histograms, generations, output.dir,
     gganimate::transition_manual(frame.label) +
     ggplot2::labs(title = "{current_frame}")
   gganimate::animate(
-    animation, nframes = nrow(generations), fps = settings$fps,
+    animation, nframes = nrow(generations), fps = fps,
     width = 960, height = 600, device = "png", res = 120,
     renderer = gganimate::gifski_renderer(
       file.path(output.dir, "kinship_histogram.gif"), loop = TRUE))
