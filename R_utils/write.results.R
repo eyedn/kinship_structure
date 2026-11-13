@@ -30,7 +30,7 @@ write.results <- function(result) {
   write.csv(result$histograms, file.path(run.dir, "histograms.csv"),
             row.names = FALSE)
   saveRDS(result$final.state, file.path(run.dir, "final_state.rds"))
-  packages <- c("tibble", "dplyr", "ggplot2", "future", "furrr",
+  packages <- c("tibble", "dplyr", "ggplot2", "scales", "future", "furrr",
                 "gganimate", "magick", "testthat")
   versions <- vapply(packages, function(package) {
     if (requireNamespace(package, quietly = TRUE)) {

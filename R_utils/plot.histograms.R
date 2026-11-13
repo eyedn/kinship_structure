@@ -29,9 +29,15 @@ plot.histograms <- function(histograms, generations, selected = NULL,
                         shape = 3, size = 0.6, alpha = 0.5) +
     ggplot2::scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2),
                                 expand = ggplot2::expansion(mult = 0)) +
-    ggplot2::scale_y_continuous(limits = c(0, y.maximum),
-                                expand = ggplot2::expansion(mult = c(0, 0))) +
-    ggplot2::labs(x = "Pedigree kinship", y = "Proportion of active pairs",
+    # Pseudo-log expands small proportions while preserving exact zeros.
+    ggplot2::scale_y_continuous(
+      trans = scales::pseudo_log_trans(base = 10, sigma = 0.001),
+      breaks = c(0, .25, .5, .75, 1),
+      labels = c("0", ".25", ".5", ".75", "1"),
+      limits = c(0, y.maximum),
+      expand = ggplot2::expansion(mult = c(0, 0))) +
+    ggplot2::labs(x = "Pedigree kinship",
+                  y = "Proportion of active pairs (pseudo-log scale)",
                   caption = "100 bins of width 0.01; + marks zero-count bins") +
     ggplot2::theme_minimal(base_size = 11) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
