@@ -31,7 +31,7 @@ write.results <- function(result) {
             row.names = FALSE)
   saveRDS(result$final.state, file.path(run.dir, "final_state.rds"))
   packages <- c("tibble", "dplyr", "ggplot2", "future", "furrr",
-                "gganimate", "gifski", "testthat")
+                "gganimate", "magick", "testthat")
   versions <- vapply(packages, function(package) {
     if (requireNamespace(package, quietly = TRUE)) {
       as.character(utils::packageVersion(package))

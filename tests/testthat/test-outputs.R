@@ -26,6 +26,9 @@ testthat::test_that('run directories preserve earlier outputs', {
                             result$config)
   testthat::expect_identical(dget(file.path(first, 'configuration.R')),
                             result$config)
+  packages <- read.csv(file.path(first, 'package_versions.csv'))$package
+  testthat::expect_true('magick' %in% packages)
+  testthat::expect_false('gifski' %in% packages)
   testthat::expect_equal(min(result$final.state$individuals$generation), 1)
   testthat::expect_setequal(list.files(first),
     c('configuration.R', 'configuration.rds', 'final_state.rds',
@@ -60,7 +63,8 @@ testthat::test_that('CLI and interactive runs agree with automatic cores', {
     saved, read.csv(file.path(run.dir, 'generations.csv')), before)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(actual$workers,
-                        min(future::availableCores(), 4L))
+                        min(resolve.available.cores(future::availableCores(which = "all")),
+                            4L))
   for (file in list.files(before, pattern = '\\.png$')) {
     testthat::expect_identical(
       png::readPNG(file.path(before, file)),
@@ -76,7 +80,9 @@ testthat::test_that('a single generation renders and restores the future plan', 
   rendered <- render.figures(result$histograms, result$generations, output)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(rendered$snapshots, 0L)
-  testthat::expect_true(file.exists(file.path(output, 'kinship_histogram.gif')))
+  gif <- file.path(output, 'kinship_histogram.gif')
+  testthat::expect_true(file.exists(gif))
+  testthat::expect_equal(nrow(magick::image_info(magick::image_read(gif))), 1L)
 })
 
 

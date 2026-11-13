@@ -12,7 +12,7 @@ Install the R dependencies once:
 
 ```r
 install.packages(c("tibble", "dplyr", "ggplot2", "future", "furrr",
-                   "gganimate", "gifski", "testthat", "png"))
+                   "gganimate", "magick", "testthat", "png"))
 ```
 
 Run with defaults, or pass named arguments using spaces or `=`:
@@ -78,8 +78,12 @@ expired parent IDs; it is not a full pedigree archive.
 Parent assignments and generation updates run sequentially. The simulation
 sets a fixed RNG algorithm and restores the caller's RNG state. Plotting worker
 counts do not affect simulation results. Each rendering call detects available
-CPUs using `future::availableCores()`, which considers scheduler allocations and
-system limits. Independent static plots use `future`/`furrr`, with workers
+CPUs using `future::availableCores(which = "all")`, then selects the smallest
+valid positive count across detection methods. For example, system=128 with
+process affinity, cgroups, nproc and Slurm all reporting 8 resolves to 8. Every
+render prints the per-method counts and detected CPU count; these are also
+returned as `RENDER.INFO$core.counts` and `RENDER.INFO$available.cores`.
+Independent static plots use `future`/`furrr`, with workers
 limited to the smaller of available CPUs and the number of static plots. The
 caller's future plan is restored afterward. Population updates and GIF frames
 remain sequential.
@@ -137,7 +141,8 @@ zero-count bins. Animation uses numerically ordered generation factors and
 [`transition_manual()`](https://gganimate.com/reference/transition_manual.html)
 without interpolated generations. Snapshots select unique valid generations
 from G0-G5, Gfloor(G/2), and G(G-1). The heatmap places later generations higher
-on the y-axis.
+on the y-axis. GIFs use `gganimate::magick_renderer()` and are saved with
+`magick::image_write()`; `gifski` is not required.
 
 To regenerate figures from saved summaries without rerunning the simulation:
 

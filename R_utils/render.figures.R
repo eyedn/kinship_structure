@@ -17,7 +17,7 @@ render.figures <- function(histograms, generations, output.dir,
       fps > .Machine$integer.max) {
     stop("fps must be a positive integer.")
   }
-  packages <- c("ggplot2", "gganimate", "gifski", "future", "furrr")
+  packages <- c("ggplot2", "gganimate", "magick", "future", "furrr")
   for (package in packages) {
     if (!requireNamespace(package, quietly = TRUE)) {
       stop("Install required rendering package: ", package)
@@ -43,7 +43,10 @@ render.figures <- function(histograms, generations, output.dir,
          plot = plot.heatmap(histograms), width = 8, height = 6)))
   old.plan <- future::plan()
   on.exit(future::plan(old.plan), add = TRUE)
-  available.cores <- future::availableCores()
+  core.counts <- future::availableCores(which = "all")
+  available.cores <- resolve.available.cores(core.counts)
+  message("CPU detection: ", paste(names(core.counts), core.counts,
+                                    sep = "=", collapse = ", "))
   actual.workers <- min(available.cores, length(jobs))
   message(sprintf("Detected %d available CPUs; using %d plotting workers.",
                   available.cores, actual.workers))
@@ -58,10 +61,13 @@ render.figures <- function(histograms, generations, output.dir,
   animation <- plot.histograms(histograms, generations) +
     gganimate::transition_manual(frame.label) +
     ggplot2::labs(title = "{current_frame}")
-  gganimate::animate(
+  animation <- gganimate::animate(
     animation, nframes = nrow(generations), fps = fps,
     width = 960, height = 600, device = "png", res = 120,
-    renderer = gganimate::gifski_renderer(
-      file.path(output.dir, "kinship_histogram.gif"), loop = TRUE))
-  invisible(list(workers = actual.workers, snapshots = selected))
+    renderer = gganimate::magick_renderer(loop = TRUE))
+  magick::image_write(animation,
+                       path = file.path(output.dir, "kinship_histogram.gif"),
+                       format = "gif")
+  invisible(list(available.cores = available.cores, core.counts = core.counts,
+                 workers = actual.workers, snapshots = selected))
 }
