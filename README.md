@@ -4,7 +4,8 @@ Simulate diploid autosomal pedigree kinship in a rolling three-generation
 population, without genomes or sex classes. `G` counts founders: 50 generations
 are labeled G0 through G49. Defaults are 100 generations, 100 individuals per
 generation, seed 1, output root `~/scratch/kinship_structure`, and GIF playback
-at five generations per second. Plotting detects available CPUs automatically.
+at 25 generations per second (five times the original playback speed).
+Plotting detects available CPUs automatically.
 
 ## Run
 
@@ -137,11 +138,12 @@ right-open, except the final bin includes 1. Zero-count bins are retained;
 use each generation's total active pair count.
 
 Histogram axes stay fixed across generations. All histogram PNGs and GIF
-frames use a base-10 pseudo-log y-axis (`sigma = 0.001`) with labels
-`0`, `.25`, `.5`, `.75`, and `1`. This expands small proportions and transitions
-smoothly to a linear scale near zero, so exact-zero bins remain visible.
-Saved counts and proportions retain their original values. Baseline `+` marks
-identify zero-count bins. Animation uses numerically ordered generation factors and
+frames plot `percentage = 100 * proportion` with a `log(1 + percentage)`
+y-axis and tick labels `0`, `25`, `50`, `75`, and `100`. The log1p transform
+keeps exact-zero bins visible. Saved counts and proportions retain their
+original values; percentage conversion is only applied when plotting.
+Baseline `+` marks identify zero-count bins. Animation uses numerically ordered
+generation factors and
 [`transition_manual()`](https://gganimate.com/reference/transition_manual.html)
 without interpolated generations. Snapshots select unique valid generations
 from G0-G5, Gfloor(G/2), and G(G-1). The heatmap places later generations higher

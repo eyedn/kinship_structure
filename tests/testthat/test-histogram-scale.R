@@ -9,7 +9,7 @@
 # test-histogram-scale.R
 # ______________________________________________________________________________
 
-testthat::test_that('histogram scales retain zero and the requested labels', {
+testthat::test_that('histograms log percentages and retain zero', {
   result <- run.simulation(make.config(generations = 3,
                                        population.sizes = rep(4L, 3)))
   plots <- list(
@@ -18,9 +18,10 @@ testthat::test_that('histogram scales retain zero and the requested labels', {
     plot.histograms(result$histograms, result$generations, faceted = TRUE))
   for (plot in plots) {
     scale <- plot$scales$get_scales('y')
-    testthat::expect_equal(scale$breaks, c(0, .25, .5, .75, 1))
-    testthat::expect_equal(scale$labels, c('0', '.25', '.5', '.75', '1'))
-    positions <- scale$trans$transform(c(0, .25, .5, .75, 1))
+    testthat::expect_equal(scale$breaks, c(0, 25, 50, 75, 100))
+    testthat::expect_equal(scale$labels, c('0', '25', '50', '75', '100'))
+    positions <- scale$trans$transform(c(0, 25, 50, 75, 100))
+    testthat::expect_equal(positions, log1p(c(0, 25, 50, 75, 100)))
     testthat::expect_true(all(is.finite(positions)))
     testthat::expect_equal(positions[1], 0)
     testthat::expect_true(all(diff(positions) > 0))
@@ -31,7 +32,15 @@ testthat::test_that('histogram scales retain zero and the requested labels', {
     testthat::expect_true(all(is.finite(built$data[[1]]$ymin)))
     testthat::expect_true(all(is.finite(built$data[[1]]$ymax)))
     testthat::expect_true(all(built$data[[2]]$y == 0))
+    testthat::expect_equal(sort(built$data[[1]]$ymax),
+                          sort(log1p(100 * plot$data$proportion)))
   }
+  testthat::expect_equal(plots[[1]]$data$percentage,
+                        100 * result$histograms$proportion)
   testthat::expect_identical(plots[[1]]$data$proportion,
                             result$histograms$proportion)
+})
+
+testthat::test_that('default animation playback is 25 generations per second', {
+  testthat::expect_equal(make.config()$fps, 25L)
 })
