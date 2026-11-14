@@ -16,6 +16,7 @@ DEFAULT.POPULATION.SIZE <- 500L
 DEFAULT.SEED <- 1L
 DEFAULT.OUTPUT.DIR <- "~/scratch/kinship_structure"
 DEFAULT.FPS <- 25L
+DEFAULT.GIF.GENERATION.STEP <- 3L
 DEFAULT.BLOCK.SIZE <- 128L
 
 # Locate helpers when sourcing, running selections, or using Rscript.
@@ -40,7 +41,14 @@ message("Run directory: ", RUN.DIR)
 message("Figures directory: ", FIGURES.DIR)
 RENDER.INFO <- render.figures(
   RESULT$histograms, RESULT$generations, FIGURES.DIR, fps = CONFIG$fps,
-  degree.histograms = RESULT$degree.histograms)
+  degree.histograms = RESULT$degree.histograms,
+  gif.generation.step = CONFIG$gif.generation.step,
+  histograms.by.cohort = RESULT$histograms.by.cohort,
+  degree.histograms.by.cohort = RESULT$degree.histograms.by.cohort)
 message("Animation: ", file.path(FIGURES.DIR, "kinship_histogram.gif"))
 message("Animation: ", file.path(FIGURES.DIR, "degree_histogram.gif"))
+message("Animation: ", file.path(FIGURES.DIR,
+                                 "kinship_histogram_by_cohort.gif"))
+message("Animation: ", file.path(FIGURES.DIR,
+                                 "degree_histogram_by_cohort.gif"))
 message("Completed run: ", RUN.DIR)

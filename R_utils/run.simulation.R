@@ -11,6 +11,7 @@
 
 
 run.simulation <- function(config = make.config()) {
+  if (is.null(config$gif.generation.step)) config$gif.generation.step <- 3L
   config <- do.call(make.config, config)
   estimate <- matrix.memory(config)
   message(sprintf(
@@ -46,6 +47,11 @@ run.simulation <- function(config = make.config()) {
   list(config = config, final.state = state,
        generations = dplyr::bind_rows(lapply(summaries, `[[`, "generations")),
        histograms = dplyr::bind_rows(lapply(summaries, `[[`, "histograms")),
+       histograms.by.cohort = dplyr::bind_rows(
+         lapply(summaries, `[[`, "histograms.by.cohort")),
+       degree.histograms.by.cohort = complete.degree.histograms(
+         dplyr::bind_rows(lapply(summaries, `[[`,
+                                "degree.histograms.by.cohort"))),
        degree.histograms = complete.degree.histograms(dplyr::bind_rows(
          lapply(summaries, `[[`, "degree.histograms"))))
 }

@@ -14,9 +14,12 @@ make.config <- function(
     generations = DEFAULT.GENERATIONS, population.sizes = NULL,
     seed = DEFAULT.SEED,
     output.dir = DEFAULT.OUTPUT.DIR, fps = DEFAULT.FPS,
-    block.size = DEFAULT.BLOCK.SIZE) {
+    block.size = DEFAULT.BLOCK.SIZE,
+    gif.generation.step = if (exists("DEFAULT.GIF.GENERATION.STEP"))
+      DEFAULT.GIF.GENERATION.STEP else 3L) {
   scalars <- list(generations = generations, seed = seed,
-                  fps = fps, block.size = block.size)
+                  fps = fps, block.size = block.size,
+                  gif.generation.step = gif.generation.step)
   for (name in names(scalars)) {
     value <- scalars[[name]]
     minimum <- if (name == "seed") 0 else 1
@@ -45,5 +48,6 @@ make.config <- function(
   list(generations = as.integer(generations),
        population.sizes = as.integer(population.sizes), seed = as.integer(seed),
        output.dir = output.dir,
-       fps = as.integer(fps), block.size = as.integer(block.size))
+       fps = as.integer(fps), block.size = as.integer(block.size),
+       gif.generation.step = as.integer(gif.generation.step))
 }

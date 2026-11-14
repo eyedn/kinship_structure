@@ -9,16 +9,12 @@
 # test-render-selections.R
 # ______________________________________________________________________________
 
-testthat::test_that('animation uses five-generation steps and both endpoints', {
-  runs <- c(1, 2, 5, 6, 7, 10, 11, 50, 5000)
-  expected <- list(0L, 0:1, c(0L, 4L), c(0L, 5L), c(0L, 5L, 6L),
-                   c(0L, 5L, 9L), c(0L, 5L, 10L),
-                   c(seq.int(0L, 45L, 5L), 49L),
-                   c(seq.int(0L, 4995L, 5L), 4999L))
-  for (i in seq_along(runs)) {
-    testthat::expect_identical(animation.generations(runs[i]), expected[[i]])
+testthat::test_that('default animation includes both endpoints', {
+  for (g in c(1, 2, 3, 4, 5, 7, 10, 12, 50, 5000)) {
+    testthat::expect_identical(animation.generations(g),
+      as.integer(unique(c(seq(0, g - 1, by = 3), g - 1))))
   }
-  testthat::expect_length(animation.generations(5000), 1001L)
+  testthat::expect_length(animation.generations(5000), 1668L)
 })
 
 testthat::test_that('early facets and animation retain full-run scales', {

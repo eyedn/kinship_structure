@@ -18,14 +18,14 @@ testthat::test_that('histograms log percentages and retain zero', {
     plot.histograms(result$histograms, result$generations, faceted = TRUE))
   for (plot in plots) {
     scale <- plot$scales$get_scales('y')
-    testthat::expect_equal(scale$breaks, c(0, 25, 50, 75, 100))
-    testthat::expect_equal(scale$labels, c('0', '25', '50', '75', '100'))
-    positions <- scale$trans$transform(c(0, 25, 50, 75, 100))
-    testthat::expect_equal(positions, log1p(c(0, 25, 50, 75, 100)))
+    testthat::expect_equal(scale$breaks, c(0, 5, 10, 15, 20, 25, 50, 75, 100))
+    testthat::expect_equal(scale$labels, as.character(scale$breaks))
+    positions <- scale$trans$transform(c(0, 5, 10, 15, 20, 25, 50, 75, 100))
+    testthat::expect_equal(positions, log1p(scale$breaks))
     testthat::expect_true(all(is.finite(positions)))
     testthat::expect_equal(positions[1], 0)
     testthat::expect_true(all(diff(positions) > 0))
-    testthat::expect_true(all(diff(diff(positions)) < 0))
+    testthat::expect_true(all(diff(diff(positions) / diff(scale$breaks)) < 0))
   }
   for (plot in plots[2:3]) {
     built <- ggplot2::ggplot_build(plot)

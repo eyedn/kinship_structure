@@ -10,6 +10,11 @@
 # ______________________________________________________________________________
 
 
-animation.generations <- function(generations) {
-  as.integer(unique(c(seq(0, generations - 1L, by = 5L), generations - 1L)))
+animation.generations <- function(generations, step = 3L) {
+  if (!is.numeric(step) || length(step) != 1L || is.na(step) ||
+      !is.finite(step) || step < 1 || step != floor(step) ||
+      step > .Machine$integer.max) {
+    stop("gif.generation.step must be a positive integer.")
+  }
+  as.integer(unique(c(seq(0, generations - 1L, by = step), generations - 1L)))
 }

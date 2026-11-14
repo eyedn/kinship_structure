@@ -4,7 +4,9 @@ Simulate diploid autosomal pedigree kinship and pedigree distances in a rolling
 three-generation population, without genomes or sex classes. `G` counts founders: 50 generations
 are labeled G0 through G49. Defaults are 5,000 generations, 500 individuals per
 generation, seed 1, output root `~/scratch/kinship_structure`, and GIF playback
-at 25 frames per second, showing every fifth generation and the final one.
+at 25 frames per second, showing every third generation and the final one.
+Edit `DEFAULT.GIF.GENERATION.STEP <- 3L` to change the generation interval;
+it must be a positive integer and has no CLI option.
 Plotting detects available CPUs automatically.
 
 ## Run
@@ -52,8 +54,9 @@ for inspection. Run selections from the top so defaults and helpers are loaded.
 `run.simulation(CONFIG)` remains available for manual reruns. It returns
 `config`, `final.state` (an `individuals` tibble and aligned symmetric `kinship`
 and `degree` matrices), and historical `generations`, `histograms`, and
-`degree.histograms` tibbles. This function alone does not write files or render plots. `make.config()` also
-accepts `fps` and `block.size` for interactive rendering and pair-summary
+`degree.histograms`, `histograms.by.cohort`, and
+`degree.histograms.by.cohort` tibbles. This function alone does not write files or render plots. `make.config()` also
+accepts `fps`, `gif.generation.step`, and `block.size` for interactive rendering and pair-summary
 row blocks.
 
 ## Model and storage
@@ -117,7 +120,7 @@ figures location is:
 
 `~` expands to the home directory on the machine running R. On the cluster it
 refers to your cluster home, not your local computer. The script prints the
-absolute run directory, figures directory, and both GIF paths. In RStudio, inspect
+absolute run directory, figures directory, and all four GIF paths. In RStudio, inspect
 `FIGURES.DIR` or use the Files pane to open that path.
 
 Both CLI and sourced execution write numerical results before rendering. Those
@@ -133,15 +136,23 @@ when rendering starts; it is absent if only `run.simulation()` or
 | `final_state.rds` | Final active metadata and aligned kinship and degree matrices |
 | `generations.csv` | Generation label, active cohort sizes, population and pair counts, mean kinship, mean active inbreeding, exact-zero pair count |
 | `degree_histograms.csv` | Generation, label, numeric degree (`Inf` for Unrelated), count and proportion |
+| `histograms_by_cohort.csv` | Kinship histogram columns plus `cohort.pair`; proportions use all active pairs |
+| `degree_histograms_by_cohort.csv` | Distance histogram columns plus `cohort.pair`; proportions use all active pairs |
 | `histograms.csv` | Generation, bin index, lower/upper boundaries, right-closed flag, count and proportion |
-| `figures/kinship_histogram.gif` | Every fifth generation plus the final generation |
+| `figures/kinship_histogram.gif` | Every third generation plus the final generation |
 | `figures/histograms_first10_faceted.png` | G0–G9 on shared axes |
 | `figures/histograms_faceted.png` | All selected snapshots on shared axes |
 | `figures/kinship_heatmap.png` | Generation-by-bin proportions on a shared linear color scale |
-| `figures/degree_histogram.gif` | Distances every fifth generation plus the final generation |
+| `figures/degree_histogram.gif` | Distances every third generation plus the final generation |
 | `figures/degree_histograms_first10_faceted.png` | G0–G9 distance panels on shared axes |
 | `figures/degree_histograms_faceted.png` | Selected distance snapshots on shared axes |
 | `figures/degree_heatmap.png` | Generation-by-distance proportions on a linear color scale |
+| `figures/histograms_by_cohort_faceted.png` | Stacked cohort colors at selected kinship snapshots |
+| `figures/histograms_by_cohort_first10_faceted.png` | Stacked cohort colors at G0–G9 |
+| `figures/kinship_histogram_by_cohort.gif` | Cohort-colored kinship frames at the same selected generations |
+| `figures/degree_histograms_by_cohort_faceted.png` | Stacked cohort colors at selected distance snapshots |
+| `figures/degree_histograms_by_cohort_first10_faceted.png` | Stacked cohort colors at G0–G9 for distances |
+| `figures/degree_histogram_by_cohort.gif` | Cohort-colored distance frames at the same selected generations |
 
 Every summary includes all unordered pairs of distinct active individuals,
 within and between cohorts. The diagonal is excluded. Pair counts equal
@@ -159,17 +170,17 @@ include all active pairs in the denominator, including unrelated pairs.
 
 Histogram axes stay fixed across generations. All histogram PNGs and GIF
 frames plot `percentage = 100 * proportion` with a `log(1 + percentage)`
-y-axis and tick labels `0`, `25`, `50`, `75`, and `100`. The log1p transform
+y-axis and tick labels `0`, `5`, `10`, `15`, `20`, `25`, `50`, `75`, and `100`. The log1p transform
 keeps exact-zero bins visible. Saved counts and proportions retain their
 original values; percentage conversion is only applied when plotting.
 Baseline `+` marks identify zero-count bins. Animation uses numerically ordered
 generation factors and
 [`transition_manual()`](https://gganimate.com/reference/transition_manual.html)
 without interpolated generations. GIFs select
-`unique(c(seq(0, G - 1, by = 5), G - 1))`, always including founders and
+`unique(c(seq(0, G - 1, by = step), G - 1))`, always including founders and
 the final generation. Each frame shows one generation without pooling. At
-25 frames per second, regular steps cover 125 generations per second; the
-last step can be shorter. The default has 1,001 frames ending at G4999.
+25 frames per second with step 3, regular steps cover 75 generations per second; the
+last step can be shorter. The default has 1,668 frames ending at G4999.
 Overview snapshots select
 `unique(round(seq(0, G - 1, length.out = 6)))`, or every generation when G < 6.
 The defaults select G0, G1000, G2000, G2999, G3999, and G4999. Heatmaps place
@@ -188,7 +199,30 @@ figures are produced even when their selections coincide. Cohort-size labels
 wrap for readability. `RENDER.INFO` retains `snapshots` and also returns
 `early.snapshots` and `animation.generations`.
 
-To regenerate figures from saved summaries without rerunning the simulation:
+Cohort-colored plots add four static figures and two GIFs, for ten static
+figures and four GIFs total. Child, parent, and grandparent mean generation
+offsets 0, 1, and 2 from the displayed generation, regardless of direct
+relationships. The fixed legend and bottom-to-top stack order are:
+
+| Pair category | Color |
+| --- | --- |
+| Child–child | `#0072B2` |
+| Parent–parent | `#E69F00` |
+| Grandparent–grandparent | `#009E73` |
+| Child–parent | `#CC79A7` |
+| Child–grandparent | `#D55E00` |
+| Parent–grandparent | `#56B4E9` |
+
+Each category uses all active pairs as its denominator. Summing the categories
+recovers the original histogram counts and proportions in each bin. All six
+categories are saved, including explicit zeros for absent cohorts at G0 and G1.
+Stack boundaries are accumulated as percentages before applying log1p. A single
+baseline `+` marks each wholly empty bin; zero segments within an occupied bin
+have no marker. Colored plots retain the original axes, panels, and selected
+frames, including Unrelated distances, with a two-row legend above the plot.
+Heatmaps are unchanged.
+
+To regenerate all figures from saved summaries without rerunning the simulation:
 
 ```r
 for (helper.file in list.files("R_utils", pattern = "\\.R$",
@@ -200,13 +234,33 @@ histograms <- read.csv(file.path(run.dir, "histograms.csv"))
 generations <- read.csv(file.path(run.dir, "generations.csv"))
 config <- readRDS(file.path(run.dir, "configuration.rds"))
 degree.histograms <- read.csv(file.path(run.dir, "degree_histograms.csv"))
+histograms.by.cohort <- read.csv(file.path(run.dir,
+                                           "histograms_by_cohort.csv"))
+degree.histograms.by.cohort <- read.csv(file.path(run.dir,
+  "degree_histograms_by_cohort.csv"))
+step <- if (is.null(config$gif.generation.step)) 3L else
+  config$gif.generation.step
 render.figures(histograms, generations, file.path(run.dir, "figures_rebuilt"),
-                fps = config$fps, degree.histograms = degree.histograms)
+                fps = config$fps, degree.histograms = degree.histograms,
+                gif.generation.step = step,
+                histograms.by.cohort = histograms.by.cohort,
+                degree.histograms.by.cohort = degree.histograms.by.cohort)
 ```
 
-The optional trailing `degree.histograms` argument enables both metrics. Omit
-it to regenerate coefficient-only figures, including runs saved before distances
-were added. Load helpers as above; sourcing the main script executes a new run.
+The optional `degree.histograms` argument enables distance figures. The new
+trailing arguments are `gif.generation.step`, `histograms.by.cohort`, and
+`degree.histograms.by.cohort`. Older configurations without the step field use 3.
+Older aggregate-only summaries still produce all original figures: omit the two
+cohort CSV reads and grouped-summary arguments. Colored historical plots require
+rerunning the simulation because aggregate tables do not retain cohort counts.
+For coefficient-only regeneration, omit both distance arguments. For example:
+
+```r
+render.figures(histograms, generations, file.path(run.dir, "kinship_rebuilt"),
+                fps = config$fps, gif.generation.step = step)
+```
+
+Load helpers as above; sourcing the main script executes a new run.
 
 Rendering to an existing figure directory replaces matching figure files.
 Individual `histogram_G*.png` and `degree_histogram_G*.png` files are no longer
@@ -223,7 +277,8 @@ Tests cover known pedigrees, an independent scalar full-pedigree reference
 through cohort removal, full-ancestor distance references, unrelated co-parents,
 inbreeding, matrix invariants, changing population sizes, histogram
 boundaries and exact zeros, G=1/G=2/G=6/G=50/G=5000 snapshot endpoints,
-numeric frame ordering,
+numeric frame ordering, configurable generation steps, cohort membership,
+category count conservation, stacks transformed after accumulation,
 reproducibility, unique output directories, CLI parity, CSV-only regeneration,
 automatic CPU detection, sourced execution, repeatable PNGs, and actual
 GIF/PNG rendering. Generated verification

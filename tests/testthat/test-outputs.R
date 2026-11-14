@@ -33,6 +33,7 @@ testthat::test_that('run directories preserve earlier outputs', {
   testthat::expect_setequal(list.files(first),
     c('configuration.R', 'configuration.rds', 'final_state.rds',
       'generations.csv', 'histograms.csv', 'degree_histograms.csv',
+      'histograms_by_cohort.csv', 'degree_histograms_by_cohort.csv',
       'package_versions.csv',
       'seed.txt', 'session_info.txt'))
 })
@@ -60,7 +61,12 @@ testthat::test_that('CLI and interactive runs agree with automatic cores', {
       'kinship_heatmap.png', 'kinship_histogram.gif',
       'degree_histograms_first10_faceted.png',
       'degree_histograms_faceted.png', 'degree_heatmap.png',
-      'degree_histogram.gif'))
+      'degree_histogram.gif',
+      'histograms_by_cohort_faceted.png',
+      'histograms_by_cohort_first10_faceted.png',
+      'degree_histograms_by_cohort_faceted.png',
+      'degree_histograms_by_cohort_first10_faceted.png',
+      'kinship_histogram_by_cohort.gif', 'degree_histogram_by_cohort.gif'))
   degree <- read.csv(file.path(run.dir, 'degree_histograms.csv'))
   testthat::expect_equal(degree$degree, result$degree.histograms$degree)
   testthat::expect_equal(degree$count, result$degree.histograms$count)
@@ -74,11 +80,15 @@ testthat::test_that('CLI and interactive runs agree with automatic cores', {
   before <- tempfile('regenerated_', tmpdir = root)
   actual <- render.figures(
     saved, read.csv(file.path(run.dir, 'generations.csv')), before,
-    degree.histograms = degree)
+    degree.histograms = degree,
+    gif.generation.step = config$gif.generation.step,
+    histograms.by.cohort = read.csv(file.path(run.dir,
+                                              'histograms_by_cohort.csv')),
+    degree.histograms.by.cohort = read.csv(file.path(run.dir,
+      'degree_histograms_by_cohort.csv')))
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(actual$workers,
-                        min(resolve.available.cores(future::availableCores(which = "all")),
-                            6L))
+    min(resolve.available.cores(future::availableCores(which = "all")), 10L))
   for (file in list.files(before, pattern = '\\.png$')) {
     testthat::expect_identical(
       png::readPNG(file.path(before, file)),
@@ -92,7 +102,10 @@ testthat::test_that('a single generation renders and restores the future plan', 
   output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'single_generation')
   old.plan <- future::plan()
   rendered <- render.figures(result$histograms, result$generations, output,
-                             degree.histograms = result$degree.histograms)
+                             degree.histograms = result$degree.histograms,
+                             histograms.by.cohort = result$histograms.by.cohort,
+                             degree.histograms.by.cohort =
+                               result$degree.histograms.by.cohort)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(rendered$snapshots, 0L)
   testthat::expect_identical(rendered$early.snapshots, 0L)
@@ -151,14 +164,16 @@ testthat::test_that('saved summaries render without main-script defaults', {
                              pattern = '\\.R$', full.names = TRUE)) {
     sys.source(helper, envir = isolated)
   }
-  result <- run.simulation(make.config(generations = 1,
-                                       population.sizes = 2))
+  result <- run.simulation(make.config(generations = 4,
+                                       population.sizes = rep(2L, 4)))
   output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'isolated_replay')
   dir.create(output, recursive = TRUE, showWarnings = FALSE)
   historical <- file.path(output, 'histogram_G0.png')
   writeLines('historical snapshot', historical)
-  testthat::expect_no_error(isolated$render.figures(
-    result$histograms, result$generations, output, fps = 5L))
+  rendered <- isolated$render.figures(
+    result$histograms, result$generations, output, fps = 5L,
+    gif.generation.step = 2L)
+  testthat::expect_identical(rendered$animation.generations, c(0L, 2L, 3L))
   testthat::expect_identical(readLines(historical), 'historical snapshot')
   testthat::expect_true(all(file.exists(file.path(output, c(
     'histograms_faceted.png', 'histograms_first10_faceted.png',
@@ -171,14 +186,21 @@ testthat::test_that('stepped GIFs render selected generations at 25 fps', {
                                        population.sizes = rep(6L, 12)))
   output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'stepped_render')
   rendered <- render.figures(result$histograms, result$generations, output,
-                             degree.histograms = result$degree.histograms)
-  testthat::expect_identical(rendered$animation.generations, c(0L, 5L, 10L, 11L))
+                             degree.histograms = result$degree.histograms,
+                             histograms.by.cohort = result$histograms.by.cohort,
+                             degree.histograms.by.cohort =
+                               result$degree.histograms.by.cohort)
+  testthat::expect_identical(rendered$animation.generations,
+                             c(0L, 3L, 6L, 9L, 11L))
   testthat::expect_identical(rendered$early.snapshots, 0:9)
-  testthat::expect_equal(length(list.files(output, pattern = '\\.png$')), 6L)
-  for (metric in c('kinship', 'degree')) {
-    path <- file.path(output, paste0(metric, '_histogram.gif'))
+  testthat::expect_equal(length(list.files(output, pattern = '\\.png$')), 10L)
+  for (metric in c('kinship', 'degree', 'kinship_by_cohort',
+                   'degree_by_cohort')) {
+    name <- paste0(sub('_by_cohort', '', metric), '_histogram',
+      if (grepl('by_cohort', metric)) '_by_cohort' else '', '.gif')
+    path <- file.path(output, name)
     gif <- magick::image_read(path)
-    testthat::expect_equal(nrow(magick::image_info(gif)), 4L)
+    testthat::expect_equal(nrow(magick::image_info(gif)), 5L)
     bytes <- readBin(path, 'raw', n = file.info(path)$size)
     starts <- which(bytes == as.raw(0x21))
     controls <- starts[vapply(starts, function(i) {
@@ -188,6 +210,33 @@ testthat::test_that('stepped GIFs render selected generations at 25 fps', {
     delays <- vapply(controls, function(i) {
       as.integer(bytes[i + 4L]) + 256L * as.integer(bytes[i + 5L])
     }, integer(1))
-    testthat::expect_identical(delays, rep(4L, 4L))
+    testthat::expect_identical(delays, rep(4L, 5L))
   }
+})
+
+
+testthat::test_that('older configurations default to three-generation steps', {
+  config <- make.config(generations = 1, population.sizes = 2)
+  config$gif.generation.step <- NULL
+  previous <- DEFAULT.GIF.GENERATION.STEP
+  on.exit(assign('DEFAULT.GIF.GENERATION.STEP', previous, .GlobalEnv))
+  assign('DEFAULT.GIF.GENERATION.STEP', 7L, .GlobalEnv)
+  result <- run.simulation(config)
+  testthat::expect_equal(result$config$gif.generation.step, 3L)
+})
+
+
+testthat::test_that('aggregate-only summaries still render both metrics', {
+  result <- run.simulation(make.config(generations = 2,
+                                       population.sizes = c(3, 4)))
+  output <- tempfile('aggregate_', tmpdir = file.path(
+    SCRIPT.DIR, 'tests', 'artifacts'))
+  rendered <- render.figures(result$histograms, result$generations, output,
+                             degree.histograms = result$degree.histograms,
+                             gif.generation.step = 5L)
+  testthat::expect_identical(rendered$animation.generations, 0:1)
+  testthat::expect_equal(length(list.files(output, pattern = '\\.png$')), 6L)
+  testthat::expect_equal(length(list.files(output, pattern = '\\.gif$')), 2L)
+  testthat::expect_equal(rendered$workers,
+    min(resolve.available.cores(future::availableCores(which = 'all')), 6L))
 })

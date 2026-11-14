@@ -17,9 +17,17 @@ complete.degree.histograms <- function(histograms) {
   data <- tibble::tibble(
     generation = rep(generations, each = length(categories)),
     degree = rep(categories, times = length(generations)))
-  data <- dplyr::left_join(data, histograms, by = c("generation", "degree"))
+  keys <- c("generation", "degree")
+  if ("cohort.pair" %in% names(histograms)) {
+    data <- data[rep(seq_len(nrow(data)), 6L), ]
+    data$cohort.pair <- rep(cohort.pair.labels(), each = nrow(data) / 6L)
+    keys <- c(keys, "cohort.pair")
+  }
+  data <- dplyr::left_join(data, histograms, by = keys)
   data$label <- paste0("G", data$generation)
   data$count[is.na(data$count)] <- 0
   data$proportion[is.na(data$proportion)] <- 0
-  data[, c("generation", "label", "degree", "count", "proportion")]
+  columns <- c("generation", "label", "degree", "count", "proportion")
+  if ("cohort.pair" %in% names(data)) columns <- c(columns, "cohort.pair")
+  data[, columns]
 }

@@ -33,6 +33,13 @@ write.results <- function(result) {
     write.csv(result$degree.histograms,
               file.path(run.dir, "degree_histograms.csv"), row.names = FALSE)
   }
+  for (name in c("histograms.by.cohort", "degree.histograms.by.cohort")) {
+    if (!is.null(result[[name]])) {
+      write.csv(result[[name]],
+                file.path(run.dir, paste0(gsub(".", "_", name, fixed = TRUE),
+                                           ".csv")), row.names = FALSE)
+    }
+  }
   saveRDS(result$final.state, file.path(run.dir, "final_state.rds"))
   packages <- c("tibble", "dplyr", "ggplot2", "scales", "future", "furrr",
                 "gganimate", "magick", "testthat")
