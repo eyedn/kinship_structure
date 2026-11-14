@@ -25,5 +25,14 @@ check.state <- function(state) {
             isTRUE(all.equal(unname(diag(k)),
                              (1 + individuals$inbreeding) / 2,
                              tolerance = 1e-14)))
+  degree <- state$degree
+  stopifnot(is.matrix(degree), is.numeric(degree),
+            identical(dimnames(degree), dimnames(k)),
+            identical(dim(degree), dim(k)), !anyNA(degree),
+            all(degree >= 0),
+            all(degree[is.finite(degree)] == floor(degree[is.finite(degree)])),
+            all(diag(degree) == 0),
+            sum(degree == 0) == nrow(degree),
+            identical(degree, t(degree)))
   invisible(NULL)
 }

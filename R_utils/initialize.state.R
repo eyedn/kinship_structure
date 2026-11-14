@@ -17,5 +17,8 @@ initialize.state <- function(population.size) {
     parent.2 = NA_character_, inbreeding = 0)
   kinship <- diag(0.5, population.size)
   dimnames(kinship) <- list(ids, ids)
-  list(individuals = individuals, kinship = kinship)
+  degree <- matrix(Inf, population.size, population.size,
+                   dimnames = list(ids, ids))
+  diag(degree) <- 0
+  list(individuals = individuals, kinship = kinship, degree = degree)
 }

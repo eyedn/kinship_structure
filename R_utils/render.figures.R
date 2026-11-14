@@ -11,7 +11,7 @@
 
 
 render.figures <- function(histograms, generations, output.dir,
-                           fps = DEFAULT.FPS) {
+                           fps = DEFAULT.FPS, degree.histograms = NULL) {
   if (!is.numeric(fps) || length(fps) != 1L || is.na(fps) ||
       !is.finite(fps) || fps < 1 || fps != floor(fps) ||
       fps > .Machine$integer.max) {
@@ -29,18 +29,27 @@ render.figures <- function(histograms, generations, output.dir,
     stop("Cannot create figures directory: ", output.dir)
   }
   selected <- snapshot.generations(nrow(generations))
-  jobs <- lapply(selected, function(generation) {
-    list(path = file.path(output.dir,
-                          paste0("histogram_G", generation, ".png")),
-         plot = plot.histograms(histograms, generations, generation),
-         width = 8, height = 4.8)
-  })
-  jobs <- c(jobs, list(
-    list(path = file.path(output.dir, "histograms_faceted.png"),
-         plot = plot.histograms(histograms, generations, selected, TRUE),
-         width = 12, height = max(4, 2.8 * ceiling(length(selected) / 2))),
-    list(path = file.path(output.dir, "kinship_heatmap.png"),
-         plot = plot.heatmap(histograms), width = 8, height = 6)))
+  metrics <- list(kinship = histograms)
+  if (!is.null(degree.histograms)) {
+    metrics$degree <- complete.degree.histograms(degree.histograms)
+  }
+  jobs <- unlist(lapply(names(metrics), function(metric) {
+    data <- metrics[[metric]]
+    prefix <- if (metric == "degree") "degree_" else ""
+    snapshots <- lapply(selected, function(generation) {
+      list(path = file.path(output.dir,
+                            paste0(prefix, "histogram_G", generation, ".png")),
+           plot = plot.histograms(data, generations, generation),
+           width = 14, height = 8)
+    })
+    c(snapshots, list(
+      list(path = file.path(output.dir,
+                            paste0(prefix, "histograms_faceted.png")),
+           plot = plot.histograms(data, generations, selected, TRUE),
+           width = 22, height = max(8, 5.5 * ceiling(length(selected) / 2))),
+      list(path = file.path(output.dir, paste0(metric, "_heatmap.png")),
+           plot = plot.heatmap(data), width = 16, height = 10)))
+  }), recursive = FALSE)
   old.plan <- future::plan()
   on.exit(future::plan(old.plan), add = TRUE)
   core.counts <- future::availableCores(which = "all")
@@ -58,16 +67,19 @@ render.figures <- function(histograms, generations, output.dir,
     future::plan(future::sequential)
     lapply(jobs, save.static.plot)
   }
-  animation <- plot.histograms(histograms, generations) +
-    gganimate::transition_manual(frame.label) +
-    ggplot2::labs(title = "{current_frame}")
-  animation <- gganimate::animate(
-    animation, nframes = nrow(generations), fps = fps,
-    width = 960, height = 600, device = "png", res = 120,
-    renderer = gganimate::magick_renderer(loop = TRUE))
-  magick::image_write(animation,
-                       path = file.path(output.dir, "kinship_histogram.gif"),
-                       format = "gif")
+  for (metric in names(metrics)) {
+    animation <- plot.histograms(metrics[[metric]], generations) +
+      gganimate::transition_manual(frame.label) +
+      ggplot2::labs(title = "{current_frame}")
+    animation <- gganimate::animate(
+      animation, nframes = nrow(generations), fps = fps,
+      width = 1400, height = 800, device = "png", res = 100,
+      renderer = gganimate::magick_renderer(loop = TRUE))
+    magick::image_write(animation,
+                         path = file.path(output.dir,
+                                          paste0(metric, "_histogram.gif")),
+                         format = "gif")
+  }
   invisible(list(available.cores = available.cores, core.counts = core.counts,
                  workers = actual.workers, snapshots = selected))
 }

@@ -11,7 +11,7 @@
 
 testthat::test_that('configuration and CLI enforce generation contracts', {
   testthat::expect_true(exists('make.config', mode = 'function'))
-  testthat::expect_equal(make.config()$population.sizes, rep(100L, 100))
+  testthat::expect_equal(make.config()$population.sizes, rep(500L, 5000))
   config <- parse.cli(c('--generations', '2', '--population-sizes=3,4',
                         '--seed', '7'))
   testthat::expect_equal(config$population.sizes, c(3L, 4L))
@@ -117,7 +117,7 @@ testthat::test_that('endpoints, snapshots and RNG are reproducible', {
     testthat::expect_equal(nrow(result$histograms), 100 * g)
     testthat::expect_equal(nrow(result$final.state$individuals), min(3, g) * 4)
   }
-  testthat::expect_equal(snapshot.generations(50), c(0:5, 25L, 49L))
+  testthat::expect_equal(snapshot.generations(50), c(0L, 10L, 20L, 29L, 39L, 49L))
   testthat::expect_equal(snapshot.generations(1), 0L)
   testthat::expect_equal(snapshot.generations(2), 0:1)
   data <- run.simulation(make.config(generations = 12,

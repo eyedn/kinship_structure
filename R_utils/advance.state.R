@@ -37,5 +37,7 @@ advance.state <- function(state, parents) {
   individuals <- dplyr::bind_rows(individuals, metadata)
   kinship <- rbind(cbind(old, t(cross)), cbind(cross, children))
   dimnames(kinship) <- list(individuals$id, individuals$id)
-  list(individuals = individuals, kinship = kinship)
+  degree <- advance.degrees(state$degree[keep, keep, drop = FALSE], p, q)
+  dimnames(degree) <- list(individuals$id, individuals$id)
+  list(individuals = individuals, kinship = kinship, degree = degree)
 }

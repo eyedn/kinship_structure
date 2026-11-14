@@ -11,11 +11,11 @@
 
 
 # Editable defaults
-DEFAULT.GENERATIONS <- 100L
-DEFAULT.POPULATION.SIZE <- 100L
+DEFAULT.GENERATIONS <- 5000L
+DEFAULT.POPULATION.SIZE <- 500L
 DEFAULT.SEED <- 1L
 DEFAULT.OUTPUT.DIR <- "~/scratch/kinship_structure"
-DEFAULT.FPS <- 5L
+DEFAULT.FPS <- 25L
 DEFAULT.BLOCK.SIZE <- 128L
 
 # Locate helpers when sourcing, running selections, or using Rscript.
@@ -39,6 +39,8 @@ FIGURES.DIR <- file.path(RUN.DIR, "figures")
 message("Run directory: ", RUN.DIR)
 message("Figures directory: ", FIGURES.DIR)
 RENDER.INFO <- render.figures(
-  RESULT$histograms, RESULT$generations, FIGURES.DIR, fps = CONFIG$fps)
+  RESULT$histograms, RESULT$generations, FIGURES.DIR, fps = CONFIG$fps,
+  degree.histograms = RESULT$degree.histograms)
 message("Animation: ", file.path(FIGURES.DIR, "kinship_histogram.gif"))
+message("Animation: ", file.path(FIGURES.DIR, "degree_histogram.gif"))
 message("Completed run: ", RUN.DIR)

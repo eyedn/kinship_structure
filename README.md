@@ -1,10 +1,10 @@
 # kinship_structure
 
-Simulate diploid autosomal pedigree kinship in a rolling three-generation
-population, without genomes or sex classes. `G` counts founders: 50 generations
-are labeled G0 through G49. Defaults are 100 generations, 100 individuals per
+Simulate diploid autosomal pedigree kinship and pedigree distances in a rolling
+three-generation population, without genomes or sex classes. `G` counts founders: 50 generations
+are labeled G0 through G49. Defaults are 5,000 generations, 500 individuals per
 generation, seed 1, output root `~/scratch/kinship_structure`, and GIF playback
-at 25 generations per second (five times the original playback speed).
+at 25 generations per second.
 Plotting detects available CPUs automatically.
 
 ## Run
@@ -50,9 +50,9 @@ stop at the failing line and leave existing objects accessible in RStudio.
 for inspection. Run selections from the top so defaults and helpers are loaded.
 
 `run.simulation(CONFIG)` remains available for manual reruns. It returns
-`config`, `final.state` (an `individuals` tibble and a symmetric `kinship`
-matrix), and the historical `generations` and `histograms` tibbles. This
-function alone does not write files or render plots. `make.config()` also
+`config`, `final.state` (an `individuals` tibble and aligned symmetric `kinship`
+and `degree` matrices), and historical `generations`, `histograms`, and
+`degree.histograms` tibbles. This function alone does not write files or render plots. `make.config()` also
 accepts `fps` and `block.size` for interactive rendering and pair-summary
 row blocks.
 
@@ -72,8 +72,17 @@ cohort is removed before adding a fourth. Retained coefficients preserve
 ancestral relatedness after ancestors leave the active population. Individual
 IDs are unique, and matrix row and column names match metadata order.
 
-Only final active metadata and the final matrix are saved. Expired individuals
-and earlier pairwise matrices are not archived. Final metadata can refer to
+Pedigree distance is the minimum number of parent–child steps through a common
+ancestor: parent–child distance is 1, siblings (including half siblings) 2, and
+first cousins 4. Self-distance is zero; founders have infinite off-diagonal
+distances. A child's distance to an existing individual is one plus the minimum
+of its parental distances. Distinct children's distance is two plus the minimum
+of the four parental distances. Unrelated pairs remain infinite. Paths pass
+upward through a common ancestor; a shared descendant never shortens an existing
+pair's distance. Retained distances preserve ancestry after cohort removal.
+
+Only final active metadata and the two final matrices are saved. Expired
+individuals and earlier pairwise matrices are not archived. Final metadata can refer to
 expired parent IDs; it is not a full pedigree archive.
 
 Parent assignments and generation updates run sequentially. The simulation
@@ -89,11 +98,12 @@ limited to the smaller of available CPUs and the number of static plots. The
 caller's future plan is restored afterward. Population updates and GIF frames
 remain sequential.
 
-The script reports the largest retained numeric matrix estimate before running:
-8 times the squared maximum active population size, in bytes. R matrix copies,
-metadata, row blocks, and rendering need additional memory. Matrix storage is
+The script reports the combined retained numeric matrix estimate before running:
+16 times the squared maximum active population size, in bytes (8 per matrix).
+R matrix copies, metadata, row blocks, and rendering need additional memory. Matrix storage is
 quadratic in active size, and simulation runtime scales with the sum of squared
-active sizes. Historical summaries occupy 100 bins per generation.
+active sizes. Historical coefficient summaries occupy 100 bins per generation;
+distance summaries retain the shared integer distance categories and Unrelated.
 
 ## Saved results
 
@@ -107,7 +117,7 @@ figures location is:
 
 `~` expands to the home directory on the machine running R. On the cluster it
 refers to your cluster home, not your local computer. The script prints the
-absolute run directory, figures directory, and GIF path. In RStudio, inspect
+absolute run directory, figures directory, and both GIF paths. In RStudio, inspect
 `FIGURES.DIR` or use the Files pane to open that path.
 
 Both CLI and sourced execution write numerical results before rendering. Those
@@ -120,13 +130,18 @@ when rendering starts; it is absent if only `run.simulation()` or
 | `configuration.rds`, `configuration.R` | Exact configuration in binary and readable R forms |
 | `seed.txt` | Simulation seed |
 | `package_versions.csv`, `session_info.txt` | Package versions, R session and simulation RNG algorithm |
-| `final_state.rds` | Final active metadata and aligned kinship matrix |
+| `final_state.rds` | Final active metadata and aligned kinship and degree matrices |
 | `generations.csv` | Generation label, active cohort sizes, population and pair counts, mean kinship, mean active inbreeding, exact-zero pair count |
+| `degree_histograms.csv` | Generation, label, numeric degree (`Inf` for Unrelated), count and proportion |
 | `histograms.csv` | Generation, bin index, lower/upper boundaries, right-closed flag, count and proportion |
 | `figures/kinship_histogram.gif` | One discrete frame per generation |
 | `figures/histogram_G*.png` | Selected generation snapshots |
 | `figures/histograms_faceted.png` | All selected snapshots on shared axes |
 | `figures/kinship_heatmap.png` | Generation-by-bin proportions on a shared linear color scale |
+| `figures/degree_histogram.gif` | Pedigree-distance distribution for every generation |
+| `figures/degree_histogram_G*.png` | Pedigree-distance snapshots |
+| `figures/degree_histograms_faceted.png` | Selected distance snapshots on shared axes |
+| `figures/degree_heatmap.png` | Generation-by-distance proportions on a linear color scale |
 
 Every summary includes all unordered pairs of distinct active individuals,
 within and between cohorts. The diagonal is excluded. Pair counts equal
@@ -137,6 +152,11 @@ right-open, except the final bin includes 1. Zero-count bins are retained;
 `zero.count` separately counts coefficients exactly equal to zero. Proportions
 use each generation's total active pair count.
 
+Distance categories span every integer from 1 through the run's maximum observed
+finite distance, followed by **Unrelated**. Every generation retains zero-count
+categories. For a founders-only run, the only category is Unrelated. Proportions
+include all active pairs in the denominator, including unrelated pairs.
+
 Histogram axes stay fixed across generations. All histogram PNGs and GIF
 frames plot `percentage = 100 * proportion` with a `log(1 + percentage)`
 y-axis and tick labels `0`, `25`, `50`, `75`, and `100`. The log1p transform
@@ -145,10 +165,16 @@ original values; percentage conversion is only applied when plotting.
 Baseline `+` marks identify zero-count bins. Animation uses numerically ordered
 generation factors and
 [`transition_manual()`](https://gganimate.com/reference/transition_manual.html)
-without interpolated generations. Snapshots select unique valid generations
-from G0-G5, Gfloor(G/2), and G(G-1). The heatmap places later generations higher
-on the y-axis. GIFs use `gganimate::magick_renderer()` and are saved with
+without interpolated generations. Snapshots select
+`unique(round(seq(0, G - 1, length.out = 6)))`, or every generation when G < 6.
+The defaults select G0, G1000, G2000, G2999, G3999, and G4999. Heatmaps place
+later generations higher on the y-axis. GIFs use `gganimate::magick_renderer()` and are saved with
 `magick::image_write()`; `gifski` is not required.
+
+Both metrics use a shared local manuscript theme: `theme_bw(base_size = 24)`,
+plain facet labels, blank strip backgrounds, no minor gridlines, and horizontal
+legends above plots. Faceted figures use two columns and up to three rows;
+cohort-size labels wrap for readability.
 
 To regenerate figures from saved summaries without rerunning the simulation:
 
@@ -161,9 +187,14 @@ run.dir <- path.expand("~/scratch/kinship_structure/run_<timestamp>_<suffix>")
 histograms <- read.csv(file.path(run.dir, "histograms.csv"))
 generations <- read.csv(file.path(run.dir, "generations.csv"))
 config <- readRDS(file.path(run.dir, "configuration.rds"))
+degree.histograms <- read.csv(file.path(run.dir, "degree_histograms.csv"))
 render.figures(histograms, generations, file.path(run.dir, "figures_rebuilt"),
-                fps = config$fps)
+                fps = config$fps, degree.histograms = degree.histograms)
 ```
+
+The optional trailing `degree.histograms` argument enables both metrics. Omit
+it to regenerate coefficient-only figures, including runs saved before distances
+were added. Load helpers as above; sourcing the main script executes a new run.
 
 Rendering to an existing figure directory replaces matching figure files. Use
 a new directory when preserving an earlier rendering.
@@ -175,8 +206,10 @@ Rscript tests/testthat.R
 ```
 
 Tests cover known pedigrees, an independent scalar full-pedigree reference
-through cohort removal, matrix invariants, changing population sizes, histogram
-boundaries and exact zeros, G=1/G=2/G=50 endpoints, numeric frame ordering,
+through cohort removal, full-ancestor distance references, unrelated co-parents,
+inbreeding, matrix invariants, changing population sizes, histogram
+boundaries and exact zeros, G=1/G=2/G=6/G=50/G=5000 snapshot endpoints,
+numeric frame ordering,
 reproducibility, unique output directories, CLI parity, CSV-only regeneration,
 automatic CPU detection, sourced execution, repeatable PNGs, and actual
 GIF/PNG rendering. Generated verification
@@ -185,3 +218,6 @@ outputs are kept under ignored `tests/artifacts/`.
 Each named function lives in its own file under `R_utils/`. Simulation,
 summarization, plotting and writing are separate. Slurm submission scripts and
 independent simulation replicates are future additions.
+
+Implementation verification uses small explicit configurations; the default
+5,000-generation simulation is not part of the test suite.

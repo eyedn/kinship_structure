@@ -14,7 +14,7 @@ run.simulation <- function(config = make.config()) {
   config <- do.call(make.config, config)
   estimate <- matrix.memory(config)
   message(sprintf(
-    "Largest active matrix: %.0f individuals; %.2f MiB (matrix only).",
+    "Largest active population: %.0f individuals; %.2f MiB (both matrices).",
     estimate$max.active.size, estimate$matrix.bytes / 1024^2))
   message("Working memory also includes matrix copies and summary row blocks.")
   old.kind <- RNGkind()
@@ -45,5 +45,7 @@ run.simulation <- function(config = make.config()) {
   }
   list(config = config, final.state = state,
        generations = dplyr::bind_rows(lapply(summaries, `[[`, "generations")),
-       histograms = dplyr::bind_rows(lapply(summaries, `[[`, "histograms")))
+       histograms = dplyr::bind_rows(lapply(summaries, `[[`, "histograms")),
+       degree.histograms = complete.degree.histograms(dplyr::bind_rows(
+         lapply(summaries, `[[`, "degree.histograms"))))
 }

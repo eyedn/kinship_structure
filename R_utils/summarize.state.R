@@ -38,6 +38,7 @@ summarize.state <- function(state, block.size = DEFAULT.BLOCK.SIZE) {
       cohort.sizes = cohort.sizes, active.size = n, pair.count = pairs,
       mean.kinship = total / pairs,
       mean.inbreeding = mean(state$individuals$inbreeding), zero.count = zeros),
+    degree.histograms = summarize.degrees(state, block.size),
     histograms = tibble::tibble(
       generation = generation, label = paste0("G", generation),
       bin = seq_len(100L), lower = head(breaks, -1L), upper = tail(breaks, -1L),

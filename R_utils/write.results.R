@@ -29,6 +29,10 @@ write.results <- function(result) {
             row.names = FALSE)
   write.csv(result$histograms, file.path(run.dir, "histograms.csv"),
             row.names = FALSE)
+  if (!is.null(result$degree.histograms)) {
+    write.csv(result$degree.histograms,
+              file.path(run.dir, "degree_histograms.csv"), row.names = FALSE)
+  }
   saveRDS(result$final.state, file.path(run.dir, "final_state.rds"))
   packages <- c("tibble", "dplyr", "ggplot2", "scales", "future", "furrr",
                 "gganimate", "magick", "testthat")

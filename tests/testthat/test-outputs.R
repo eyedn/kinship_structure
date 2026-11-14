@@ -32,7 +32,8 @@ testthat::test_that('run directories preserve earlier outputs', {
   testthat::expect_equal(min(result$final.state$individuals$generation), 1)
   testthat::expect_setequal(list.files(first),
     c('configuration.R', 'configuration.rds', 'final_state.rds',
-      'generations.csv', 'histograms.csv', 'package_versions.csv',
+      'generations.csv', 'histograms.csv', 'degree_histograms.csv',
+      'package_versions.csv',
       'seed.txt', 'session_info.txt'))
 })
 
@@ -56,15 +57,28 @@ testthat::test_that('CLI and interactive runs agree with automatic cores', {
   testthat::expect_equal(saved$count, result$histograms$count)
   testthat::expect_setequal(list.files(file.path(run.dir, 'figures')),
     c('histogram_G0.png', 'histogram_G1.png', 'histograms_faceted.png',
-      'kinship_heatmap.png', 'kinship_histogram.gif'))
+      'kinship_heatmap.png', 'kinship_histogram.gif',
+      'degree_histogram_G0.png', 'degree_histogram_G1.png',
+      'degree_histograms_faceted.png', 'degree_heatmap.png',
+      'degree_histogram.gif'))
+  degree <- read.csv(file.path(run.dir, 'degree_histograms.csv'))
+  testthat::expect_equal(degree$degree, result$degree.histograms$degree)
+  testthat::expect_equal(degree$count, result$degree.histograms$count)
+  testthat::expect_equal(degree$proportion, result$degree.histograms$proportion)
+  for (metric in c('kinship', 'degree')) {
+    gif <- magick::image_read(file.path(run.dir, 'figures',
+                                        paste0(metric, '_histogram.gif')))
+    testthat::expect_equal(nrow(magick::image_info(gif)), 2L)
+  }
   old.plan <- future::plan()
   before <- file.path(root, 'regenerated')
   actual <- render.figures(
-    saved, read.csv(file.path(run.dir, 'generations.csv')), before)
+    saved, read.csv(file.path(run.dir, 'generations.csv')), before,
+    degree.histograms = degree)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(actual$workers,
                         min(resolve.available.cores(future::availableCores(which = "all")),
-                            4L))
+                            8L))
   for (file in list.files(before, pattern = '\\.png$')) {
     testthat::expect_identical(
       png::readPNG(file.path(before, file)),
@@ -77,12 +91,16 @@ testthat::test_that('a single generation renders and restores the future plan', 
                                        population.sizes = 2))
   output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'single_generation')
   old.plan <- future::plan()
-  rendered <- render.figures(result$histograms, result$generations, output)
+  rendered <- render.figures(result$histograms, result$generations, output,
+                             degree.histograms = result$degree.histograms)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(rendered$snapshots, 0L)
   gif <- file.path(output, 'kinship_histogram.gif')
   testthat::expect_true(file.exists(gif))
   testthat::expect_equal(nrow(magick::image_info(magick::image_read(gif))), 1L)
+  degree.gif <- file.path(output, 'degree_histogram.gif')
+  testthat::expect_equal(
+    nrow(magick::image_info(magick::image_read(degree.gif))), 1L)
 })
 
 
@@ -111,7 +129,8 @@ testthat::test_that('source executes the workflow and prints figure paths', {
     'options(parallelly.availableCores.methods = c("Slurm", "system")); ',
     'source(', deparse(file.path(SCRIPT.DIR, 'simulate_kinship.R')), '); ',
     'stopifnot(file.exists(file.path(FIGURES.DIR, ',
-    '"kinship_histogram.gif")), RENDER.INFO$workers == 1L)')
+    '"kinship_histogram.gif")), file.exists(file.path(FIGURES.DIR, ',
+    '"degree_histogram.gif")), RENDER.INFO$workers == 1L)')
   logs <- system2(file.path(R.home('bin'), 'Rscript'),
     c('-e', shQuote(expression), '--generations', '2',
       '--population-sizes', '4,3', '--output-dir', shQuote(cli.output)),

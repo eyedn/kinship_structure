@@ -11,6 +11,6 @@
 
 
 snapshot.generations <- function(generations) {
-  candidates <- unique(c(0:5, floor(generations / 2), generations - 1L))
-  as.integer(candidates[candidates >= 0 & candidates < generations])
+  as.integer(unique(round(seq(0, generations - 1L,
+                              length.out = min(6L, generations)))))
 }
