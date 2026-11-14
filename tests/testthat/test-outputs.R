@@ -56,9 +56,9 @@ testthat::test_that('CLI and interactive runs agree with automatic cores', {
   testthat::expect_equal(saved$proportion, result$histograms$proportion)
   testthat::expect_equal(saved$count, result$histograms$count)
   testthat::expect_setequal(list.files(file.path(run.dir, 'figures')),
-    c('histogram_G0.png', 'histogram_G1.png', 'histograms_faceted.png',
+    c('histograms_first10_faceted.png', 'histograms_faceted.png',
       'kinship_heatmap.png', 'kinship_histogram.gif',
-      'degree_histogram_G0.png', 'degree_histogram_G1.png',
+      'degree_histograms_first10_faceted.png',
       'degree_histograms_faceted.png', 'degree_heatmap.png',
       'degree_histogram.gif'))
   degree <- read.csv(file.path(run.dir, 'degree_histograms.csv'))
@@ -71,14 +71,14 @@ testthat::test_that('CLI and interactive runs agree with automatic cores', {
     testthat::expect_equal(nrow(magick::image_info(gif)), 2L)
   }
   old.plan <- future::plan()
-  before <- file.path(root, 'regenerated')
+  before <- tempfile('regenerated_', tmpdir = root)
   actual <- render.figures(
     saved, read.csv(file.path(run.dir, 'generations.csv')), before,
     degree.histograms = degree)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(actual$workers,
                         min(resolve.available.cores(future::availableCores(which = "all")),
-                            8L))
+                            6L))
   for (file in list.files(before, pattern = '\\.png$')) {
     testthat::expect_identical(
       png::readPNG(file.path(before, file)),
@@ -95,6 +95,8 @@ testthat::test_that('a single generation renders and restores the future plan', 
                              degree.histograms = result$degree.histograms)
   testthat::expect_equal(future::plan(), old.plan)
   testthat::expect_equal(rendered$snapshots, 0L)
+  testthat::expect_identical(rendered$early.snapshots, 0L)
+  testthat::expect_identical(rendered$animation.generations, 0L)
   gif <- file.path(output, 'kinship_histogram.gif')
   testthat::expect_true(file.exists(gif))
   testthat::expect_equal(nrow(magick::image_info(magick::image_read(gif))), 1L)
@@ -152,6 +154,40 @@ testthat::test_that('saved summaries render without main-script defaults', {
   result <- run.simulation(make.config(generations = 1,
                                        population.sizes = 2))
   output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'isolated_replay')
+  dir.create(output, recursive = TRUE, showWarnings = FALSE)
+  historical <- file.path(output, 'histogram_G0.png')
+  writeLines('historical snapshot', historical)
   testthat::expect_no_error(isolated$render.figures(
     result$histograms, result$generations, output, fps = 5L))
+  testthat::expect_identical(readLines(historical), 'historical snapshot')
+  testthat::expect_true(all(file.exists(file.path(output, c(
+    'histograms_faceted.png', 'histograms_first10_faceted.png',
+    'kinship_heatmap.png', 'kinship_histogram.gif')))))
+})
+
+
+testthat::test_that('stepped GIFs render selected generations at 25 fps', {
+  result <- run.simulation(make.config(generations = 12,
+                                       population.sizes = rep(6L, 12)))
+  output <- file.path(SCRIPT.DIR, 'tests', 'artifacts', 'stepped_render')
+  rendered <- render.figures(result$histograms, result$generations, output,
+                             degree.histograms = result$degree.histograms)
+  testthat::expect_identical(rendered$animation.generations, c(0L, 5L, 10L, 11L))
+  testthat::expect_identical(rendered$early.snapshots, 0:9)
+  testthat::expect_equal(length(list.files(output, pattern = '\\.png$')), 6L)
+  for (metric in c('kinship', 'degree')) {
+    path <- file.path(output, paste0(metric, '_histogram.gif'))
+    gif <- magick::image_read(path)
+    testthat::expect_equal(nrow(magick::image_info(gif)), 4L)
+    bytes <- readBin(path, 'raw', n = file.info(path)$size)
+    starts <- which(bytes == as.raw(0x21))
+    controls <- starts[vapply(starts, function(i) {
+      identical(bytes[seq.int(i, min(i + 2L, length(bytes)))],
+                as.raw(c(0x21, 0xf9, 0x04)))
+    }, logical(1))]
+    delays <- vapply(controls, function(i) {
+      as.integer(bytes[i + 4L]) + 256L * as.integer(bytes[i + 5L])
+    }, integer(1))
+    testthat::expect_identical(delays, rep(4L, 4L))
+  }
 })

@@ -28,7 +28,8 @@ plot.heatmap <- function(histograms) {
   }
   plot <- plot +
     ggplot2::geom_tile(width = if (degree.metric) 1 else 0.01, height = 1) +
-    ggplot2::scale_fill_viridis_c(
+    ggplot2::scale_fill_gradientn(
+      colours = c("blue", "cyan", "green", "yellow", "orange", "red"),
       name = "Proportion of active pairs", trans = "identity",
       limits = c(0, max(histograms$proportion)),
       guide = ggplot2::guide_colourbar(

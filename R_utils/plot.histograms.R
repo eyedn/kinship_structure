@@ -29,7 +29,11 @@ plot.histograms <- function(histograms, generations, selected = NULL,
     labels <- ifelse(is.infinite(categories), "Unrelated", categories)
     data$category <- factor(data$degree, levels = categories, labels = labels)
   }
-  if (!is.null(selected)) data <- data[data$generation %in% selected, ]
+  if (!is.null(selected)) {
+    data <- data[data$generation %in% selected, ]
+    # animation frames must contain only the selected generation labels.
+    data$frame.label <- droplevels(data$frame.label)
+  }
   plot <- if (degree.metric) {
     ggplot2::ggplot(data, ggplot2::aes(x = category, y = percentage))
   } else {

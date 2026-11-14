@@ -4,7 +4,7 @@ Simulate diploid autosomal pedigree kinship and pedigree distances in a rolling
 three-generation population, without genomes or sex classes. `G` counts founders: 50 generations
 are labeled G0 through G49. Defaults are 5,000 generations, 500 individuals per
 generation, seed 1, output root `~/scratch/kinship_structure`, and GIF playback
-at 25 generations per second.
+at 25 frames per second, showing every fifth generation and the final one.
 Plotting detects available CPUs automatically.
 
 ## Run
@@ -134,12 +134,12 @@ when rendering starts; it is absent if only `run.simulation()` or
 | `generations.csv` | Generation label, active cohort sizes, population and pair counts, mean kinship, mean active inbreeding, exact-zero pair count |
 | `degree_histograms.csv` | Generation, label, numeric degree (`Inf` for Unrelated), count and proportion |
 | `histograms.csv` | Generation, bin index, lower/upper boundaries, right-closed flag, count and proportion |
-| `figures/kinship_histogram.gif` | One discrete frame per generation |
-| `figures/histogram_G*.png` | Selected generation snapshots |
+| `figures/kinship_histogram.gif` | Every fifth generation plus the final generation |
+| `figures/histograms_first10_faceted.png` | G0–G9 on shared axes |
 | `figures/histograms_faceted.png` | All selected snapshots on shared axes |
 | `figures/kinship_heatmap.png` | Generation-by-bin proportions on a shared linear color scale |
-| `figures/degree_histogram.gif` | Pedigree-distance distribution for every generation |
-| `figures/degree_histogram_G*.png` | Pedigree-distance snapshots |
+| `figures/degree_histogram.gif` | Distances every fifth generation plus the final generation |
+| `figures/degree_histograms_first10_faceted.png` | G0–G9 distance panels on shared axes |
 | `figures/degree_histograms_faceted.png` | Selected distance snapshots on shared axes |
 | `figures/degree_heatmap.png` | Generation-by-distance proportions on a linear color scale |
 
@@ -165,16 +165,28 @@ original values; percentage conversion is only applied when plotting.
 Baseline `+` marks identify zero-count bins. Animation uses numerically ordered
 generation factors and
 [`transition_manual()`](https://gganimate.com/reference/transition_manual.html)
-without interpolated generations. Snapshots select
+without interpolated generations. GIFs select
+`unique(c(seq(0, G - 1, by = 5), G - 1))`, always including founders and
+the final generation. Each frame shows one generation without pooling. At
+25 frames per second, regular steps cover 125 generations per second; the
+last step can be shorter. The default has 1,001 frames ending at G4999.
+Overview snapshots select
 `unique(round(seq(0, G - 1, length.out = 6)))`, or every generation when G < 6.
 The defaults select G0, G1000, G2000, G2999, G3999, and G4999. Heatmaps place
-later generations higher on the y-axis. GIFs use `gganimate::magick_renderer()` and are saved with
+later generations higher on the y-axis. Both heatmaps use equally spaced
+blue, cyan, green, yellow, orange, and red colors on a continuous linear scale
+from zero to the maximum proportion, with blue low and red high. The horizontal
+color bar above each plot labels proportions. GIFs use `gganimate::magick_renderer()` and are saved with
 `magick::image_write()`; `gifski` is not required.
 
 Both metrics use a shared local manuscript theme: `theme_bw(base_size = 24)`,
 plain facet labels, blank strip backgrounds, no minor gridlines, and horizontal
-legends above plots. Faceted figures use two columns and up to three rows;
-cohort-size labels wrap for readability.
+legends above plots. Overview faceted figures use two columns and up to three
+rows. The first-ten figures show G0–G9 in two columns and five rows; shorter
+runs show all available generations with adjusted height. Both named faceted
+figures are produced even when their selections coincide. Cohort-size labels
+wrap for readability. `RENDER.INFO` retains `snapshots` and also returns
+`early.snapshots` and `animation.generations`.
 
 To regenerate figures from saved summaries without rerunning the simulation:
 
@@ -196,8 +208,10 @@ The optional trailing `degree.histograms` argument enables both metrics. Omit
 it to regenerate coefficient-only figures, including runs saved before distances
 were added. Load helpers as above; sourcing the main script executes a new run.
 
-Rendering to an existing figure directory replaces matching figure files. Use
-a new directory when preserving an earlier rendering.
+Rendering to an existing figure directory replaces matching figure files.
+Individual `histogram_G*.png` and `degree_histogram_G*.png` files are no longer
+generated. Historical files, including these individual PNGs, are preserved in
+reused directories. Use a new directory to preserve all earlier renderings.
 
 ## Verification
 

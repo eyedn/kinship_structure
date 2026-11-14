@@ -29,6 +29,8 @@ render.figures <- function(histograms, generations, output.dir,
     stop("Cannot create figures directory: ", output.dir)
   }
   selected <- snapshot.generations(nrow(generations))
+  early.selected <- seq.int(0L, min(9L, nrow(generations) - 1L))
+  animated.selected <- animation.generations(nrow(generations))
   metrics <- list(kinship = histograms)
   if (!is.null(degree.histograms)) {
     metrics$degree <- complete.degree.histograms(degree.histograms)
@@ -36,19 +38,18 @@ render.figures <- function(histograms, generations, output.dir,
   jobs <- unlist(lapply(names(metrics), function(metric) {
     data <- metrics[[metric]]
     prefix <- if (metric == "degree") "degree_" else ""
-    snapshots <- lapply(selected, function(generation) {
-      list(path = file.path(output.dir,
-                            paste0(prefix, "histogram_G", generation, ".png")),
-           plot = plot.histograms(data, generations, generation),
-           width = 14, height = 8)
-    })
-    c(snapshots, list(
+    list(
       list(path = file.path(output.dir,
                             paste0(prefix, "histograms_faceted.png")),
            plot = plot.histograms(data, generations, selected, TRUE),
            width = 22, height = max(8, 5.5 * ceiling(length(selected) / 2))),
+      list(path = file.path(output.dir,
+                            paste0(prefix, "histograms_first10_faceted.png")),
+           plot = plot.histograms(data, generations, early.selected, TRUE),
+           width = 22,
+           height = max(8, 5.5 * ceiling(length(early.selected) / 2))),
       list(path = file.path(output.dir, paste0(metric, "_heatmap.png")),
-           plot = plot.heatmap(data), width = 16, height = 10)))
+           plot = plot.heatmap(data), width = 16, height = 10))
   }), recursive = FALSE)
   old.plan <- future::plan()
   on.exit(future::plan(old.plan), add = TRUE)
@@ -68,11 +69,12 @@ render.figures <- function(histograms, generations, output.dir,
     lapply(jobs, save.static.plot)
   }
   for (metric in names(metrics)) {
-    animation <- plot.histograms(metrics[[metric]], generations) +
+    animation <- plot.histograms(metrics[[metric]], generations,
+                                   animated.selected) +
       gganimate::transition_manual(frame.label) +
       ggplot2::labs(title = "{current_frame}")
     animation <- gganimate::animate(
-      animation, nframes = nrow(generations), fps = fps,
+      animation, nframes = length(animated.selected), fps = fps,
       width = 1400, height = 800, device = "png", res = 100,
       renderer = gganimate::magick_renderer(loop = TRUE))
     magick::image_write(animation,
@@ -81,5 +83,7 @@ render.figures <- function(histograms, generations, output.dir,
                          format = "gif")
   }
   invisible(list(available.cores = available.cores, core.counts = core.counts,
-                 workers = actual.workers, snapshots = selected))
+                 workers = actual.workers, snapshots = selected,
+                 early.snapshots = early.selected,
+                 animation.generations = animated.selected))
 }

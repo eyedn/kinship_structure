@@ -41,6 +41,6 @@ testthat::test_that('histograms log percentages and retain zero', {
                             result$histograms$proportion)
 })
 
-testthat::test_that('default animation playback is 25 generations per second', {
+testthat::test_that('default animation playback is 25 frames per second', {
   testthat::expect_equal(make.config()$fps, 25L)
 })
