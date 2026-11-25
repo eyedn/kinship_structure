@@ -70,9 +70,25 @@ The output estimate includes uncompressed final state plus conservative text,
 parent-table and figure allowances; actual usage varies. Runtime remains
 quadratic in active size per generation and is **not cluster-benchmarked**.
 
-Use a cluster allocation of **350 GB** for the large runs, with a site-specific
-partition and walltime. For Slurm, request `--mem=350G` and run the command above
-inside the allocation. Run increasing-size benchmarks and a short N = 100,000
+Submit the Slurm job from the project root on CARC:
+
+```sh
+mkdir -p /home1/karatas/logs/kinshipDegrees
+sbatch simulated_kinship_degrees.sh
+```
+
+The job uses partition `qcb`, account `jazlynmo_738`, one node, one task,
+**one CPU**, **350 GB** total memory (`--mem=350G`), and **24 hours**.
+It loads `rstats/4.5.1` and runs all four default population sizes sequentially.
+Standard output and errors go to the log directory
+above, with job IDs in the filenames. R outputs retain their configured location.
+Named R arguments can follow the job script, for example:
+
+```sh
+sbatch simulated_kinship_degrees.sh --generations 4 --population-sizes 100
+```
+
+Run increasing-size benchmarks and a short N = 100,000
 pilot before launching the full batch. `/usr/bin/time -v Rscript ...` on Linux
 records elapsed time and maximum resident set size; `generations.csv` also
 records cumulative simulation elapsed seconds. No cluster validation or full
@@ -407,8 +423,9 @@ GIF/PNG rendering. Generated verification
 outputs are kept under ignored `tests/artifacts/`.
 
 Each named function lives in its own file under `R_utils/`. Simulation,
-summarization, plotting and writing are separate. Slurm submission scripts and
-independent simulation replicates are future additions.
+summarization, plotting and writing are separate. The degree-only entrypoint has
+the Slurm job described above; independent simulation replicates are future
+additions.
 
 Implementation verification uses small explicit configurations; the default
 5,000-generation simulation is not part of the test suite.
