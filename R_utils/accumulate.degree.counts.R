@@ -6,7 +6,10 @@
 # Mooney Lab
 # kinship_structure
 # ___
-# testthat.R
+# accumulate.degree.counts.R
 # ______________________________________________________________________________
 
-testthat::test_dir('tests/testthat', reporter = 'summary')
+
+accumulate.degree.counts <- function(counts, values) {
+  as.double(counts) + tabulate(as.integer(values) + 1L, nbins = 256L)
+}

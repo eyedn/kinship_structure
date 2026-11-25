@@ -9,6 +9,128 @@ Edit `DEFAULT.GIF.GENERATION.STEP <- 3L` to change the generation interval;
 it must be a positive integer and has no CLI option.
 Plotting detects available CPUs automatically.
 
+## Degree-only simulation
+
+`simulated_kinship_degrees.R` is a separate entrypoint. It calculates no kinship
+coefficients and leaves `simulate_kinship.R` unchanged. Its defaults run four
+independent constant-size populations (100, 1,000, 10,000, 100,000) sequentially
+for 100 generations, G0–G99. Each size starts independently with seed 1.
+
+```sh
+Rscript simulated_kinship_degrees.R --generations 100 \
+  --population-sizes 100,1000,10000,100000 --seed 1 \
+  --output-dir ~/scratch/kinship_structure
+```
+
+Here `--population-sizes` identifies independent runs, rather than a changing
+population trajectory. Named arguments use separate values as shown above.
+Edit the `DEFAULT.DEGREE.*` values at the top of the new script for sourced
+execution (`source("simulated_kinship_degrees.R")`). Sourcing executes the batch
+and leaves `CONFIG` and `BATCH.DIR` accessible. Rendering defaults to 25 fps and
+includes every generation. `make.degree.config()` accepts `block.size` and
+`fps` for direct helper use; the CLI exposes only the four arguments above.
+Unknown, repeated, missing and invalid arguments fail before output creation.
+
+The two metrics are minimum path recurrences:
+
+- **Pedigree steps:** parent–child = 1, full or half siblings = 2, full or half
+  first cousins = 4. This matches the existing simulator's pedigree distances.
+- **Closest-relationship degree:** parent–child and full siblings = 1, half
+  siblings and grandparent–grandchild = 2, full first cousins = 3, half first
+  cousins = 4. This is the specified minimum recurrence with a full-sibling
+  override; it does not measure accumulated genetic relatedness or inbreeding.
+
+Both start with unrelated founders, zero self-values and infinite unrelated
+values. Child-to-existing values are one plus the minimum parental value;
+distinct child-to-child values are two plus the minimum of four parental values.
+The relationship metric then overrides full siblings to 1, including reversed
+parent order. Old pairs never change when shared descendants appear. All
+retained values survive cohort expiry, without accumulating extra routes.
+Parents are uniformly sampled distinct individuals from the preceding cohort.
+Only three cohorts remain active. RNG kind and seed are restored after each
+helper run, and block size does not change parent sampling or numerical results.
+
+Storage uses cohort-aligned raw-byte tiles, one byte per unordered distinct pair
+per metric. Diagonal tiles store a packed triangle; rectangular tiles store each
+cross-block pair once. Self-values are implicit zero, and byte 255 encodes
+unrelated pairs. Finite values 1–254 support up to 128 configured generations.
+Tiles are at most `block.size^2` bytes per metric (default block size 512;
+maximum 4,096). Tile reads and temporary vectors are bounded by this block size.
+Dropping a cohort removes its tiles; retained tiles stay in the same environment.
+`advance.degree.state()` **consumes** its state: do not treat an earlier state
+object as a historical snapshot, since it shares the mutable tile environment.
+Save a snapshot explicitly with `saveRDS()` if needed.
+
+At N = 100,000, 300,000 active individuals require
+`2 * choose(300000, 2)` = 89,999,700,000 bytes (90.00 GB / 83.82 GiB) for both
+metrics. R objects, index maps, metadata, tile lookups, temporary vectors,
+serialization and rendering add overhead. Each size prints pair-memory,
+temporary-block and output-storage estimates before allocating the state.
+The output estimate includes uncompressed final state plus conservative text,
+parent-table and figure allowances; actual usage varies. Runtime remains
+quadratic in active size per generation and is **not cluster-benchmarked**.
+
+Use a cluster allocation of **350 GB** for the large runs, with a site-specific
+partition and walltime. For Slurm, request `--mem=350G` and run the command above
+inside the allocation. Run increasing-size benchmarks and a short N = 100,000
+pilot before launching the full batch. `/usr/bin/time -v Rscript ...` on Linux
+records elapsed time and maximum resident set size; `generations.csv` also
+records cumulative simulation elapsed seconds. No cluster validation or full
+N = 100,000 completion is claimed by the local tests.
+
+Every invocation creates a unique `degrees_<timestamp>_<suffix>/` batch directory
+and an `N_<size>/` directory for each population. Each size writes numerical
+results before rendering, and earlier batches remain intact:
+
+| File | Contents |
+| --- | --- |
+| `configuration.rds`, `configuration.R`, `seed.txt` | Exact batch settings and seed |
+| `parents.csv` | Every individual and its generation and parent IDs, including founders |
+| `generations.csv` | G0-based labels, cohort sizes, active sizes, pair counts and elapsed seconds |
+| `steps_histograms.csv`, `relationship_histograms.csv` | Generation, label, numeric degree, exact count and proportion |
+| `final_state.rds` | Compact final tile environment, active metadata and index maps |
+| `session_info.txt` | R/package session details and simulation RNG algorithm |
+
+IDs are numeric, unique within a size and reused across independent populations.
+Histogram denominators include every unordered distinct active pair, including
+unrelated pairs, and sum to `choose(active.size, 2)`. Counts accumulate as doubles
+to remain exact beyond R's integer limit. Each table completes all integer
+categories through the run's largest observed finite value plus `Inf` for
+**Unrelated**, including zeros at every generation.
+
+Exactly six uncolored figures are saved per size under `figures/`, using the
+existing manuscript theme, two-column facets, percentage/log1p y-axis and `+`
+zero-count markers. Axes stay fixed across all generations within a size/metric.
+For each prefix `steps` and `relationship`:
+
+- `<prefix>_first10_faceted.png`: G0–G9, or every available early generation.
+- `<prefix>_snapshots_faceted.png`: G0, G10, …, G90, G99 for the default run;
+  shorter/longer runs use multiples of ten plus their final generation.
+- `<prefix>_histogram.gif`: all generations in numeric order, with exactly 100
+  frames for the default run, without interpolation or skipped generations.
+
+For numerical-only execution or regeneration from saved summaries, load the
+helpers without sourcing either entrypoint:
+
+```r
+for (helper.file in list.files("R_utils", pattern = "\\.R$",
+                                full.names = TRUE)) source(helper.file)
+config <- make.degree.config(generations = 4, population.sizes = c(10, 20),
+                             output.dir = "tests/artifacts/degrees")
+batch.dir <- run.degree.batch(config, render = FALSE)
+size.dir <- file.path(batch.dir, "N_10")
+saved <- list(
+  config = readRDS(file.path(size.dir, "configuration.rds")),
+  generations = read.csv(file.path(size.dir, "generations.csv")),
+  steps = read.csv(file.path(size.dir, "steps_histograms.csv")),
+  relationship = read.csv(file.path(size.dir, "relationship_histograms.csv")))
+render.degree.figures(saved, file.path(size.dir, "figures_rebuilt"))
+```
+
+Rendering directly into an existing figure directory replaces matching figures;
+use a fresh directory to preserve earlier renders. Figures render sequentially
+so the large pair state is never copied into plotting workers.
+
 ## Run
 
 Install the R dependencies once:
