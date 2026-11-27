@@ -11,7 +11,7 @@
 
 
 # Editable defaults: each size is an independent constant-size population.
-DEFAULT.DEGREE.GENERATIONS <- 100L
+DEFAULT.DEGREE.GENERATIONS <- 50L
 DEFAULT.DEGREE.POPULATION.SIZES <- c(100L, 1000L, 10000L, 100000L)
 DEFAULT.DEGREE.SEED <- 1L
 DEFAULT.DEGREE.OUTPUT.DIR <- "~/scratch/kinship_structure"

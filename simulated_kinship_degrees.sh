@@ -17,7 +17,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=350G
-#SBATCH --time=1-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=/home1/karatas/logs/kinshipDegrees/%A.%x.out
 #SBATCH --error=/home1/karatas/logs/kinshipDegrees/%A.%x.err
 #SBATCH --mail-type=ALL
